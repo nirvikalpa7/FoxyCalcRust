@@ -1,0 +1,21 @@
+[package]  
+version = "0.1.0"  
+name = "foxy-calc"
+description = "A simple investment/financial calculator created to demonstrate how to work with GUI (eframe/egui) on Rust."  
+authors = ["Sidelnikov Dmitriy <nirvikalpa@yandex.ru>"]
+edition = "2024"
+rust-version = "1.92"
+  
+[dependencies]  
+eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "persistence"] }  
+image = { version = "0.25", features = ["png"] }
+
+[profile.release]  
+opt-level = 2 # fast and small wasm  
+codegen-units = 1  
+lto = true  
+panic = "abort"  
+  
+# Optimize all dependencies even in debug builds:  
+[profile.dev.package."*"]  
+opt-level = 2
