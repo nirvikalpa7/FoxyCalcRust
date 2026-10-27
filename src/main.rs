@@ -5,7 +5,7 @@ use eframe::egui;
 fn main() -> eframe::Result<()>  {
 
     // Загружаем байты иконки во время компиляции
-    let icon_bytes = include_bytes!("../assets/favicon_64x64.png");
+    let icon_bytes = include_bytes!("../assets/favicon_128x128.png");
     
     // Декодируем изображение с помощью библиотеки image
     let image = image::load_from_memory(icon_bytes)
@@ -33,24 +33,185 @@ fn main() -> eframe::Result<()>  {
         "Rust FoxyCalc v0.1",
         native_options,  
         Box::new(|cc| {
-            cc.egui_ctx.set_theme(egui::Theme::Dark); // Theme::Dark / Theme::Light
+            cc.egui_ctx.set_theme(egui::Theme::Light); // Theme::Dark / Theme::Light
             Ok(Box::new(MyApp::new(cc)))
         }),  
     )
 }  
 
-struct MyApp {}
+struct MyApp {
+    // Буферы для хранения текста из полей ввода
+    invest_duration_text: String,   // Длительность инвестиций, годы
+    interest_text: String,          // Процентная ставка инвестиций, проценты
+    start_deposit_text: String,     // Начальный капитал
+    deposit_text: String,           // Размер пополнения
+    deposit_years_text: String,     // Сколько лет делаем пополнения
+    withdraw_text: String,          // Размер ежемесячного изъятия
+    withdraw_start_text: String,    // Год, начала изъятий
+    inflation_text: String,         // Годовой размер инфляции, проценты
+    salary_grow_text: String,       // Годовой рост пополнения, проценты
+    reinvest_duration_text: String, // Период реинвестирования процентов
+    age_of_investor_text: String,   // Возраст инвестора на первый год инвестиций
+    calendar_year_text: String,     // Календарный год на первый год инвестиций
+}
 
 impl MyApp {
     fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        Self {}
+        Self {
+            invest_duration_text: String::new(),
+            interest_text: String::new(),
+            start_deposit_text: String::new(),
+            deposit_text: String::new(),
+            deposit_years_text: String::new(),
+            withdraw_text: String::new(),
+            withdraw_start_text: String::new(),
+            inflation_text: String::new(),
+            salary_grow_text: String::new(),
+            reinvest_duration_text: String::new(),
+            age_of_investor_text: String::new(),
+            calendar_year_text: String::new(),
+        }
     }
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Привет! Посмотри на иконку окна.");
+            ui.heading("Инвестиционный калькулятор с пополнением, изъятием, инфляцией и ростом зарплаты");
+            ui.add_space(20.0);
+
+            // 1. Получаем текущие визуальные настройки
+            let mut visuals = ctx.style().visuals.clone();
+
+            // 2. Настраиваем Постоянную Серую Рамку для неактивных полей
+            visuals.widgets.inactive.bg_stroke = egui::Stroke {
+                width: 1.0,
+                color: egui::Color32::from_gray(180), 
+            };
+            
+            // 3. Применяем измененные стили к контексту
+            ctx.set_visuals(visuals);
+
+            // Задаем точные размеры для полей ввода [Ширина, Высота]
+            let edit_size = egui::vec2(270.0, 24.0);
+
+            // ======= СТРОКА 1 =======
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Срок инвестиций (годы):"));
+                    ui.add_space(4.0);
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.invest_duration_text).hint_text("35"));
+                });
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Годовая процентная ставка:"));
+                    ui.add_space(4.0);
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.interest_text).hint_text("11"));
+                });
+            });
+
+            ui.add_space(16.0); // Вертикальный отступ между строками формы
+
+            // ======= СТРОКА 2 =======
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Начальный капитал:"));
+                    ui.add_space(4.0); // Отступ между текстом и полем
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.start_deposit_text).hint_text("1000000"));
+                });
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Ежемесячное пополнение:"));
+                    ui.add_space(4.0);
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.deposit_text).hint_text("60000"));
+                });
+            });
+
+            ui.add_space(16.0); // Вертикальный отступ между строками формы
+
+            // ======= СТРОКА 3 =======
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Сколько лет делаем пополнения:"));
+                    ui.add_space(4.0); // Отступ между текстом и полем
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.deposit_years_text).hint_text("25"));
+                });
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Размер ежемесячного изъятия (расходы):"));
+                    ui.add_space(4.0);
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.withdraw_text).hint_text("100000"));
+                });
+            });
+
+            ui.add_space(16.0); // Вертикальный отступ между строками формы
+
+            // ======= СТРОКА 4 =======
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Инвест год, начала изъятий:"));
+                    ui.add_space(4.0); // Отступ между текстом и полем
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.withdraw_start_text).hint_text("26"));
+                });
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Годовой размер инфляции, проценты:"));
+                    ui.add_space(4.0);
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.inflation_text).hint_text("5"));
+                });
+            });
+
+            ui.add_space(16.0); // Вертикальный отступ между строками формы
+
+            // ======= СТРОКА 5 =======
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Годовой рост пополнения, проценты:"));
+                    ui.add_space(4.0); // Отступ между текстом и полем
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.salary_grow_text).hint_text("3"));
+                });
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Реинвестирования процентов, месяцы:"));
+                    ui.add_space(4.0);
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.reinvest_duration_text).hint_text("3"));
+                });
+            });
+
+            ui.add_space(16.0); // Вертикальный отступ между строками формы
+
+            // ======= СТРОКА 6 =======
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Возраст инвестора на первый инвест год:"));
+                    ui.add_space(4.0); // Отступ между текстом и полем
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.age_of_investor_text).hint_text("37"));
+                });
+
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new("Календарный год на первый инвест год:"));
+                    ui.add_space(4.0);
+                    ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.calendar_year_text).hint_text("2026"));
+                });
+            });
+
+            ui.add_space(16.0); // Вертикальный отступ между строками формы
+
+            // Просто для демонстрации, что текст успешно сохраняется:
+            //ui.label(format!("Вы ввели: {} и {} и {} и {}", self.first_name, self.last_name, self.phone, self.email));
         });
+        
     }
 }
