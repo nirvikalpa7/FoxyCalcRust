@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use eframe::egui;  
-  
+use eframe::egui;
+
 fn main() -> eframe::Result<()>  {
 
     // Загружаем байты иконки во время компиляции
@@ -34,6 +34,7 @@ fn main() -> eframe::Result<()>  {
         native_options,  
         Box::new(|cc| {
             cc.egui_ctx.set_theme(egui::Theme::Light); // Theme::Dark / Theme::Light
+            egui_extras::install_image_loaders(&cc.egui_ctx);
             Ok(Box::new(MyApp::new(cc)))
         }),  
     )
@@ -57,6 +58,7 @@ struct MyApp {
 
 impl MyApp {
     fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+
         Self {
             invest_duration_text: String::new(),
             interest_text: String::new(),
@@ -77,8 +79,8 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Инвестиционный калькулятор с пополнением, изъятием, инфляцией и ростом зарплаты");
-            ui.add_space(20.0);
+            ui.heading("Расширенный инвест калькулятор с пополнением, изъятием, инфляцией и ростом зарплаты");
+            ui.add_space(10.0);
 
             // 1. Получаем текущие визуальные настройки
             let mut visuals = ctx.style().visuals.clone();
@@ -93,7 +95,49 @@ impl eframe::App for MyApp {
             ctx.set_visuals(visuals);
 
             // Задаем точные размеры для полей ввода [Ширина, Высота]
-            let edit_size = egui::vec2(270.0, 24.0);
+            let edit_size = egui::vec2(290.0, 24.0);
+            let edit_space: f32 = 8.0;
+            let button_icon_size: f32 = 35.0;
+
+            // Вшиваем иконку (например, лежащую в папке assets)
+            let icon_source_calc = egui::include_image!("../assets/button_icon_calc.png");
+            let icon_source_demo = egui::include_image!("../assets/button_icon_demo.png");
+            let icon_source_save = egui::include_image!("../assets/button_icon_save.png");
+            let icon_source_lang = egui::include_image!("../assets/button_icon_lang.png");
+
+            let icon_sized_calc = egui::Image::new(icon_source_calc)
+                .fit_to_exact_size(egui::vec2(button_icon_size, button_icon_size)) // РАЗМЕР ИКОНКИ ТУТ
+                .corner_radius(3.0);
+            let icon_sized_demo = egui::Image::new(icon_source_demo)
+                .fit_to_exact_size(egui::vec2(button_icon_size, button_icon_size)) 
+                .corner_radius(3.0);
+            let icon_sized_save = egui::Image::new(icon_source_save)
+                .fit_to_exact_size(egui::vec2(button_icon_size, button_icon_size))
+                .corner_radius(3.0);
+            let icon_sized_lang = egui::Image::new(icon_source_lang)
+                .fit_to_exact_size(egui::vec2(button_icon_size, button_icon_size))
+                .corner_radius(3.0);
+
+            let image_btn_calc = egui::Button::image_and_text(icon_sized_calc, "Рассчитать");
+            let image_btn_demo = egui::Button::image_and_text(icon_sized_demo, "Демо данные");
+            let image_btn_save = egui::Button::image_and_text(icon_sized_save, "Сохранить");
+            let image_btn_lang = egui::Button::image_and_text(icon_sized_lang, "English");
+            ui.horizontal(|ui| {
+                if ui.add_sized(egui::vec2(130.0, 50.0), image_btn_calc).clicked() {
+                    // Клик по иконке
+                }
+                if ui.add_sized(egui::vec2(150.0, 50.0), image_btn_demo).clicked() {
+                    // Клик по иконке
+                }
+                if ui.add_sized(egui::vec2(130.0, 50.0), image_btn_save).clicked() {
+                    // Клик по иконке
+                }
+                if ui.add_sized(egui::vec2(110.0, 50.0), image_btn_lang).clicked() {
+                    // Клик по иконке
+                }
+            });
+
+            ui.add_space(10.0);
 
             // ======= СТРОКА 1 =======
             ui.horizontal(|ui| {
@@ -112,7 +156,7 @@ impl eframe::App for MyApp {
                 });
             });
 
-            ui.add_space(16.0); // Вертикальный отступ между строками формы
+            ui.add_space(edit_space); // Вертикальный отступ между строками формы
 
             // ======= СТРОКА 2 =======
             ui.horizontal(|ui| {
@@ -131,7 +175,7 @@ impl eframe::App for MyApp {
                 });
             });
 
-            ui.add_space(16.0); // Вертикальный отступ между строками формы
+            ui.add_space(edit_space); // Вертикальный отступ между строками формы
 
             // ======= СТРОКА 3 =======
             ui.horizontal(|ui| {
@@ -150,7 +194,7 @@ impl eframe::App for MyApp {
                 });
             });
 
-            ui.add_space(16.0); // Вертикальный отступ между строками формы
+            ui.add_space(edit_space); // Вертикальный отступ между строками формы
 
             // ======= СТРОКА 4 =======
             ui.horizontal(|ui| {
@@ -169,7 +213,7 @@ impl eframe::App for MyApp {
                 });
             });
 
-            ui.add_space(16.0); // Вертикальный отступ между строками формы
+            ui.add_space(edit_space); // Вертикальный отступ между строками формы
 
             // ======= СТРОКА 5 =======
             ui.horizontal(|ui| {
@@ -182,13 +226,13 @@ impl eframe::App for MyApp {
                 });
 
                 ui.vertical(|ui| {
-                    ui.add(egui::Label::new("Реинвестирования процентов, месяцы:"));
+                    ui.add(egui::Label::new("Реинвестирования процентов, месяцы (3,6,12):"));
                     ui.add_space(4.0);
                     ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.reinvest_duration_text).hint_text("3"));
                 });
             });
 
-            ui.add_space(16.0); // Вертикальный отступ между строками формы
+            ui.add_space(edit_space); // Вертикальный отступ между строками формы
 
             // ======= СТРОКА 6 =======
             ui.horizontal(|ui| {
@@ -207,7 +251,7 @@ impl eframe::App for MyApp {
                 });
             });
 
-            ui.add_space(16.0); // Вертикальный отступ между строками формы
+            ui.add_space(15.0); // Вертикальный отступ между строками формы
 
             // Просто для демонстрации, что текст успешно сохраняется:
             //ui.label(format!("Вы ввели: {} и {} и {} и {}", self.first_name, self.last_name, self.phone, self.email));
