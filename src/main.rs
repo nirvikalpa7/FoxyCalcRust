@@ -2,6 +2,54 @@
 
 use eframe::egui;
 
+fn configure_app_styles(cc: &eframe::CreationContext<'_>) {
+    // 1. Настройка темы Theme::Dark / Theme::Light
+    cc.egui_ctx.set_theme(egui::Theme::Light);
+    
+    // 2. Поддержка кнопок с иконками
+    egui_extras::install_image_loaders(&cc.egui_ctx);
+    
+    // 3. Настройка рамок
+    let mut visuals = cc.egui_ctx.style().visuals.clone();
+    
+    // Задаем постоянную серую рамку для полей ввода
+    visuals.widgets.inactive.bg_stroke = egui::Stroke {
+        width: 1.0,
+        color: egui::Color32::from_gray(180), 
+    };
+                
+    // Применяем стили один раз на всё время работы приложения
+    cc.egui_ctx.set_visuals(visuals);
+
+    // 4. Подключаем свой шрифт для корректного рисования символа рубля ₽
+    let mut fonts = egui::FontDefinitions::default();
+
+    // Вшиваем файл шрифта в бинарник
+    fonts.font_data.insert(
+        "my_font_roboto".to_owned(),
+        std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+            "../assets/Roboto.ttf"
+        ))),
+    );
+
+    // Устанавливаем этот шрифт приоритетным для обычного текста (Proportional)
+    fonts
+        .families
+        .entry(egui::FontFamily::Proportional)
+        .or_default()
+        .insert(0, "my_font_roboto".to_owned());
+
+    // Устанавливаем его же для моноширинного текста (например, в полях ввода, если нужно)
+    fonts
+        .families
+        .entry(egui::FontFamily::Monospace)
+        .or_default()
+        .insert(0, "my_font_roboto".to_owned());
+
+    // Передаем обновленную коллекцию шрифтов в контекст
+    cc.egui_ctx.set_fonts(fonts);
+}
+
 fn main() -> eframe::Result<()>  {
 
     // Загружаем байты иконки во время компиляции
@@ -34,27 +82,21 @@ fn main() -> eframe::Result<()>  {
         native_options,  
         Box::new(|cc| {
 
-            // Настройка темы Theme::Dark / Theme::Light
-            cc.egui_ctx.set_theme(egui::Theme::Light);
-            
-            egui_extras::install_image_loaders(&cc.egui_ctx);
-            
-            // Настройка рамок
-            let mut visuals = cc.egui_ctx.style().visuals.clone();
-            
-            // Задаем постоянную серую рамку для полей ввода
-            visuals.widgets.inactive.bg_stroke = egui::Stroke {
-                width: 1.0,
-                color: egui::Color32::from_gray(180), 
-            };
-                        
-            // Применяем стили один раз на всё время работы приложения
-            cc.egui_ctx.set_visuals(visuals);
+            configure_app_styles(cc);
 
             Ok(Box::new(MyApp::new(cc)))
         }),  
     )
 }  
+
+// Структура для одной строки нашей таблицы расчетов
+struct HistoryRow {
+    year: usize,
+    start_balance: f64,
+    deposits: f64,
+    interest: f64,
+    end_balance: f64,
+}
 
 struct MyApp {
     // Буферы для хранения текста из полей ввода
@@ -122,7 +164,21 @@ impl MyApp {
                 // Клик по иконке
             }
             if ui.add_sized(egui::vec2(150.0, 50.0), image_btn_demo).clicked() {
-                // Клик по иконке
+                self.invest_duration_text = String::from("35");    // Длительность инвестиций, годы
+                self.interest_text = String::from("11");           // Процентная ставка инвестиций, проценты
+                self.start_deposit_text = String::from("1000000"); // Начальный капитал
+                
+                self.deposit_text = String::from("75000");       // Размер пополнения
+                self.deposit_years_text = String::from("25");    // Сколько лет делаем пополнения
+                self.withdraw_text = String::from("100000");     // Размер ежемесячного изъятия
+                
+                self.withdraw_start_text = String::from("26");   // Год, начала изъятий
+                self.inflation_text = String::from("5");         // Годовой размер инфляции, проценты
+                self.salary_grow_text = String::from("3");       // Годовой рост пополнения, проценты
+                
+                self.reinvest_duration_text = String::from("3"); // Период реинвестирования процентов
+                self.age_of_investor_text = String::from("44");  // Возраст инвестора на первый год инвестиций
+                self.calendar_year_text = String::from("2026");  // Календарный год на первый год инвестиций
             }
             if ui.add_sized(egui::vec2(130.0, 50.0), image_btn_save).clicked() {
                 // Клик по иконке
@@ -136,7 +192,7 @@ impl MyApp {
     fn draw_text_edits(&mut self, ui: &mut egui::Ui) {
         
         // Задаем точные размеры для полей ввода [Ширина, Высота]
-        let edit_size = egui::vec2(290.0, 24.0);
+        let edit_size = egui::vec2(300.0, 24.0);
         let edit_space: f32 = 8.0;
 
         // ======= СТРОКА 1 =======
@@ -144,13 +200,13 @@ impl MyApp {
             ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Срок инвестиций (годы):"));
+                ui.add(egui::Label::new("Срок инвестиций (годы): *"));
                 ui.add_space(4.0);
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.invest_duration_text).hint_text("35"));
             });
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Годовая процентная ставка:"));
+                ui.add(egui::Label::new("Годовая процентная ставка: *"));
                 ui.add_space(4.0);
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.interest_text).hint_text("11"));
             });
@@ -163,13 +219,13 @@ impl MyApp {
             ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Начальный капитал:"));
+                ui.add(egui::Label::new("Начальный капитал: *"));
                 ui.add_space(4.0); // Отступ между текстом и полем
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.start_deposit_text).hint_text("1000000"));
             });
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Ежемесячное пополнение:"));
+                ui.add(egui::Label::new("Ежемесячное пополнение: *"));
                 ui.add_space(4.0);
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.deposit_text).hint_text("60000"));
             });
@@ -182,7 +238,7 @@ impl MyApp {
             ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Сколько лет делаем пополнения:"));
+                ui.add(egui::Label::new("Сколько лет делаем пополнения: *"));
                 ui.add_space(4.0); // Отступ между текстом и полем
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.deposit_years_text).hint_text("25"));
             });
@@ -226,7 +282,7 @@ impl MyApp {
             });
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Реинвестирования процентов, месяцы (3,6,12):"));
+                ui.add(egui::Label::new("Реинвестирования процентов, месяцы (3,6,12): *"));
                 ui.add_space(4.0);
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.reinvest_duration_text).hint_text("3"));
             });
@@ -239,39 +295,116 @@ impl MyApp {
             ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Возраст инвестора на первый инвест год:"));
+                ui.add(egui::Label::new("Возраст инвестора на первый инвест год: *"));
                 ui.add_space(4.0); // Отступ между текстом и полем
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.age_of_investor_text).hint_text("37"));
             });
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Календарный год на первый инвест год:"));
+                ui.add(egui::Label::new("Календарный год на первый инвест год: *"));
                 ui.add_space(4.0);
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.calendar_year_text).hint_text("2026"));
             });
         });
+    }
+
+    fn draw_results_table(&mut self, ui: &mut egui::Ui) {
+        ui.heading("📊 Результаты моделирования роста вашего капитала по годам");
+        ui.add_space(10.0);
+
+        // Симулируем данные для демонстрации (например, расчет на 12 лет)
+        // В вашем коде это будет реальный вектор, рассчитанный по формуле
+        let rows = vec![
+            HistoryRow { year: 1, start_balance: 10000.0, deposits: 6000.0, interest: 1100.0, end_balance: 17100.0 },
+            HistoryRow { year: 2, start_balance: 17100.0, deposits: 6000.0, interest: 1700.0, end_balance: 24800.0 },
+            HistoryRow { year: 3, start_balance: 24800.0, deposits: 6000.0, interest: 2300.0, end_balance: 33100.0 },
+            HistoryRow { year: 4, start_balance: 33100.0, deposits: 6000.0, interest: 3000.0, end_balance: 42100.0 },
+            HistoryRow { year: 5, start_balance: 42100.0, deposits: 6000.0, interest: 3700.0, end_balance: 51800.0 },
+            HistoryRow { year: 6, start_balance: 64800.0, deposits: 6000.0, interest: 4300.0, end_balance: 63100.0 },
+            HistoryRow { year: 7, start_balance: 73100.0, deposits: 6000.0, interest: 5000.0, end_balance: 72100.0 },
+            HistoryRow { year: 8, start_balance: 82100.0, deposits: 6000.0, interest: 6700.0, end_balance: 81800.0 },
+            HistoryRow { year: 9, start_balance: 93100.0, deposits: 6000.0, interest: 5000.0, end_balance: 92100.0 },
+            HistoryRow { year: 10, start_balance: 102100.0, deposits: 6000.0, interest: 6700.0, end_balance: 101800.0 },
+            HistoryRow { year: 11, start_balance: 112100.0, deposits: 6000.0, interest: 7700.0, end_balance: 111800.0 },
+            HistoryRow { year: 12, start_balance: 122100.0, deposits: 6000.0, interest: 8700.0, end_balance: 121800.0 },
+        ];
+
+        // Инициализируем построитель таблиц
+        let header_height = 25.0;        // Высота заголовка        
+        let row_height = 20.0;           // Высота одной строки данных
+        let visible_rows_height = 220.0; // Высота таблицы
+        
+        egui_extras::TableBuilder::new(ui)
+            .striped(true)    // Включаем чередование цветов строк (зебра) для читаемости
+            .resizable(false) // Запрещаем пользователю менять ширину колонок вручную
+            .vscroll(true)    // Включаем вертикальную полосу прокрутки
+            .max_scroll_height(visible_rows_height) // Ограничиваем максимальную высоту тела таблицы
+            .min_scrolled_height(0.0)
+            .auto_shrink([false, false]) // Запрещаем таблице уменьшаться по вертикали и горизонтали
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center)) // Выравнивание внутри ячеек
+            
+            // Настраиваем 5 колонок и задаем им фиксированную или адаптивную ширину
+            .column(egui_extras::Column::initial(50.0))   // Год
+            .column(egui_extras::Column::initial(130.0))  // Начальный баланс
+            .column(egui_extras::Column::initial(130.0))  // Пополнения
+            .column(egui_extras::Column::initial(130.0))  // Проценты
+            .column(egui_extras::Column::initial(140.0))  // Итоговый баланс
+            
+            // Задаем шапку таблицы
+            .header(header_height, |mut header| {
+                header.col(|ui| { ui.strong("Год"); });
+                header.col(|ui| { ui.strong("Начало года"); });
+                header.col(|ui| { ui.strong("Пополнения"); });
+                header.col(|ui| { ui.strong("Проценты"); });
+                header.col(|ui| { ui.strong("Итог года"); });
+            })
+            
+            // Заполняем таблицу данными
+            .body(|body| {
+                // В метод rows передаем общее количество строк и высоту одной строки
+                body.rows(row_height, rows.len(), |mut row| {
+                    let row_index = row.index();
+                    let data = &rows[row_index];
+
+                    // Заполняем ячейки текущей строки строго по порядку колонок
+                    row.col(|ui| { ui.label(data.year.to_string()); });
+                    row.col(|ui| { ui.label(format!("{:.2} $", data.start_balance)); });
+                    row.col(|ui| { ui.label(format!("{:.2} ₽", data.deposits)); });
+                    
+                    // Выделим начисленные проценты зеленым цветом для красоты
+                    row.col(|ui| { 
+                        ui.label(egui::RichText::new(format!("+{:.2} ₽", data.interest)).color(egui::Color32::from_rgb(46, 204, 113))); 
+                    });
+                    
+                    row.col(|ui| { ui.label(format!("{:.2} €", data.end_balance)); });
+                });
+            });
     }
 }
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Расширенный инвест калькулятор с пополнением, изъятием, инфляцией и ростом зарплаты");
+            ui.heading("🖩 Расширенный инвест калькулятор с пополнением, изъятием, инфляцией и ростом зарплаты");
             ui.add_space(10.0);
 
             //================================================================
             // Отрисовка 4х кнопок с иконками
             //================================================================
             self.draw_icon_buttons(ui);
-
             ui.add_space(10.0);
 
             //================================================================
             // Отрисовка 12 labels и text edits
             //================================================================
             self.draw_text_edits(ui);
+            ui.add_space(10.0);
 
-            ui.add_space(10.0); // Вертикальный отступ между строками формы
+            //================================================================
+            // Отрисовка таблицы с результатами
+            //================================================================
+            self.draw_results_table(ui);
+            ui.add_space(10.0);
         });
         
     }
