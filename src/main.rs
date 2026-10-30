@@ -91,9 +91,11 @@ fn main() -> eframe::Result<()>  {
 
 // Структура для одной строки нашей таблицы расчетов
 struct HistoryRow {
-    year: usize,
-    start_balance: f64,
+    invest_year: usize,
+    age: usize,
+    calendar_year: usize,
     deposits: f64,
+    withdraw: f64,
     interest: f64,
     end_balance: f64,
 }
@@ -315,18 +317,18 @@ impl MyApp {
         // Симулируем данные для демонстрации (например, расчет на 12 лет)
         // В вашем коде это будет реальный вектор, рассчитанный по формуле
         let rows = vec![
-            HistoryRow { year: 1, start_balance: 10000.0, deposits: 6000.0, interest: 1100.0, end_balance: 17100.0 },
-            HistoryRow { year: 2, start_balance: 17100.0, deposits: 6000.0, interest: 1700.0, end_balance: 24800.0 },
-            HistoryRow { year: 3, start_balance: 24800.0, deposits: 6000.0, interest: 2300.0, end_balance: 33100.0 },
-            HistoryRow { year: 4, start_balance: 33100.0, deposits: 6000.0, interest: 3000.0, end_balance: 42100.0 },
-            HistoryRow { year: 5, start_balance: 42100.0, deposits: 6000.0, interest: 3700.0, end_balance: 51800.0 },
-            HistoryRow { year: 6, start_balance: 64800.0, deposits: 6000.0, interest: 4300.0, end_balance: 63100.0 },
-            HistoryRow { year: 7, start_balance: 73100.0, deposits: 6000.0, interest: 5000.0, end_balance: 72100.0 },
-            HistoryRow { year: 8, start_balance: 82100.0, deposits: 6000.0, interest: 6700.0, end_balance: 81800.0 },
-            HistoryRow { year: 9, start_balance: 93100.0, deposits: 6000.0, interest: 5000.0, end_balance: 92100.0 },
-            HistoryRow { year: 10, start_balance: 102100.0, deposits: 6000.0, interest: 6700.0, end_balance: 101800.0 },
-            HistoryRow { year: 11, start_balance: 112100.0, deposits: 6000.0, interest: 7700.0, end_balance: 111800.0 },
-            HistoryRow { year: 12, start_balance: 122100.0, deposits: 6000.0, interest: 8700.0, end_balance: 121800.0 },
+            HistoryRow { invest_year: 1,  age: 30, calendar_year: 2026, deposits: 260000.0, withdraw: 0.0, interest: 1100.0, end_balance: 17100.0 },
+            HistoryRow { invest_year: 2,  age: 31, calendar_year: 2027, deposits: 260000.0, withdraw: 0.0, interest: 1700.0, end_balance: 24800.0 },
+            HistoryRow { invest_year: 3,  age: 32, calendar_year: 2028, deposits: 260000.0, withdraw: 0.0, interest: 2300.0, end_balance: 33100.0 },
+            HistoryRow { invest_year: 4,  age: 33, calendar_year: 2029, deposits: 260000.0, withdraw: 0.0, interest: 3000.0, end_balance: 42100.0 },
+            HistoryRow { invest_year: 5,  age: 34, calendar_year: 2030, deposits: 260000.0, withdraw: 0.0, interest: 3700.0, end_balance: 51800.0 },
+            HistoryRow { invest_year: 6,  age: 35, calendar_year: 2031, deposits: 260000.0, withdraw: 0.0, interest: 4300.0, end_balance: 63100.0 },
+            HistoryRow { invest_year: 7,  age: 36, calendar_year: 2032, deposits: 260000.0, withdraw: 0.0, interest: 5000.0, end_balance: 72100.0 },
+            HistoryRow { invest_year: 8,  age: 37, calendar_year: 2033, deposits: 260000.0, withdraw: 0.0, interest: 6700.0, end_balance: 81800.0 },
+            HistoryRow { invest_year: 9,  age: 38, calendar_year: 2034, deposits: 0.0, withdraw: 93100.0, interest: 5000.0, end_balance: 92100.0 },
+            HistoryRow { invest_year: 10, age: 39, calendar_year: 2035, deposits: 0.0, withdraw: 102100.0, interest: 6700.0, end_balance: 101800.0 },
+            HistoryRow { invest_year: 11, age: 40, calendar_year: 2036, deposits: 0.0, withdraw: 112100.0, interest: 7700.0, end_balance: 111800.0 },
+            HistoryRow { invest_year: 12, age: 41, calendar_year: 2037, deposits: 0.0, withdraw: 122100.0, interest: 8700.0, end_balance: 121800.0 },
         ];
 
         // Инициализируем построитель таблиц
@@ -344,17 +346,21 @@ impl MyApp {
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center)) // Выравнивание внутри ячеек
             
             // Настраиваем 5 колонок и задаем им фиксированную или адаптивную ширину
-            .column(egui_extras::Column::initial(50.0))   // Год
-            .column(egui_extras::Column::initial(130.0))  // Начальный баланс
-            .column(egui_extras::Column::initial(130.0))  // Пополнения
-            .column(egui_extras::Column::initial(130.0))  // Проценты
-            .column(egui_extras::Column::initial(140.0))  // Итоговый баланс
+            .column(egui_extras::Column::initial(30.0))   // Год инвестиций
+            .column(egui_extras::Column::initial(50.0))   // Возраст инвестора
+            .column(egui_extras::Column::initial(70.0))   // Календарный год
+            .column(egui_extras::Column::initial(100.0))  // Пополнения за год
+            .column(egui_extras::Column::initial(100.0))  // Изъятия за год
+            .column(egui_extras::Column::initial(120.0))  // Проценты за год
+            .column(egui_extras::Column::initial(120.0))  // Итоговый баланс
             
             // Задаем шапку таблицы
             .header(header_height, |mut header| {
                 header.col(|ui| { ui.strong("Год"); });
-                header.col(|ui| { ui.strong("Начало года"); });
+                header.col(|ui| { ui.strong("Возраст"); });
+                header.col(|ui| { ui.strong("Календарь"); });
                 header.col(|ui| { ui.strong("Пополнения"); });
+                header.col(|ui| { ui.strong("Изъятия"); });
                 header.col(|ui| { ui.strong("Проценты"); });
                 header.col(|ui| { ui.strong("Итог года"); });
             })
@@ -367,16 +373,22 @@ impl MyApp {
                     let data = &rows[row_index];
 
                     // Заполняем ячейки текущей строки строго по порядку колонок
-                    row.col(|ui| { ui.label(data.year.to_string()); });
-                    row.col(|ui| { ui.label(format!("{:.2} $", data.start_balance)); });
+                    row.col(|ui| { ui.label(data.invest_year.to_string()); });
+                    row.col(|ui| { ui.label(data.age.to_string()); });
+                    row.col(|ui| { ui.label(data.calendar_year.to_string()); });
                     row.col(|ui| { ui.label(format!("{:.2} ₽", data.deposits)); });
+                    row.col(|ui| { ui.label(format!("{:.2} $", data.withdraw)); });
                     
                     // Выделим начисленные проценты зеленым цветом для красоты
                     row.col(|ui| { 
                         ui.label(egui::RichText::new(format!("+{:.2} ₽", data.interest)).color(egui::Color32::from_rgb(46, 204, 113))); 
                     });
                     
-                    row.col(|ui| { ui.label(format!("{:.2} €", data.end_balance)); });
+                    row.col(|ui| { 
+                        ui.label(egui::RichText::new(format!("+{:.2} €", data.end_balance)).color(egui::Color32::from_rgb(0, 150, 200))); 
+                    });
+
+//                    row.col(|ui| { ui.label(format!("{:.2} ", data.end_balance)); });
                 });
             });
     }
@@ -392,13 +404,13 @@ impl eframe::App for MyApp {
             // Отрисовка 4х кнопок с иконками
             //================================================================
             self.draw_icon_buttons(ui);
-            ui.add_space(10.0);
+            ui.add_space(15.0);
 
             //================================================================
             // Отрисовка 12 labels и text edits
             //================================================================
             self.draw_text_edits(ui);
-            ui.add_space(10.0);
+            ui.add_space(15.0);
 
             //================================================================
             // Отрисовка таблицы с результатами
