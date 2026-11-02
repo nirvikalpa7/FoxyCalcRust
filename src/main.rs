@@ -50,9 +50,9 @@ fn configure_app_styles(cc: &eframe::CreationContext<'_>) {
     cc.egui_ctx.set_fonts(fonts);
 }
 
-//====================================================================================
+//=======================================================================================
 // ===== MAIN =====
-//====================================================================================
+//=======================================================================================
 fn main() -> eframe::Result<()>  {
 
     // Загружаем байты иконки во время компиляции
@@ -92,17 +92,17 @@ fn main() -> eframe::Result<()>  {
     )
 }
 
-//====================================================================================
+//=======================================================================================
 
 // Структура для одной строки нашей таблицы расчетов
-struct HistoryRow {
-    invest_year: usize,
-    investor_age: usize,
-    calendar_year: usize,
-    deposits: f64,
-    withdraw: f64,
-    interest: f64,
-    end_balance: f64,
+struct CalcHistoryRow {
+    invest_year: usize,   // Год инвестирования
+    investor_age: usize,  // Возраст инвестора
+    calendar_year: usize, // Календарный год
+    deposits: f64,        // Внесенные за год деньги
+    withdraw: f64,        // Изъятые за год деньги
+    interest: f64,        // Полученный за год процент
+    end_balance: f64,     // Итоговый баланс капитала
 }
 
 // Для 3х комбо боксов, в fn draw_text_edits
@@ -167,8 +167,9 @@ impl DepositFrequency {
     }
 }
 
-//===============================================================================
-
+//=======================================================================================
+// MyApp
+//=======================================================================================
 struct MyApp {
     // Буферы для хранения текста из полей ввода
     invest_duration_text: String,   // Длительность инвестиций, годы
@@ -183,7 +184,8 @@ struct MyApp {
     investor_age_text: String,   // Возраст инвестора на первый год инвестиций
     calendar_year_text: String,     // Календарный год на первый год инвестиций
 
-    calc_result_rows: Vec<HistoryRow>,
+    // Вектор для сохранения результатов инвест рассчетов
+    calc_result_rows: Vec<CalcHistoryRow>,
 
     // Переменные для выпадающих списков
     reinvest_period: ReinvestPeriod,     // Период реинвестирования процентов
@@ -224,9 +226,17 @@ impl MyApp {
             investor_age_text: String::new(),
             calendar_year_text: String::new(),
 
-            //calc_result_rows: Vec::new(),
             calc_result_rows: vec![
-                HistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
+                CalcHistoryRow { invest_year: 0,  investor_age: 0, calendar_year: 0, deposits: 0.0, withdraw: 0.0, interest: 0.0, end_balance: 0.0 },
             ],
 
             // Комбо боксы - задаем дефолтные значения при старте
@@ -248,45 +258,124 @@ impl MyApp {
             investor_age_num: 0,
             calendar_year_num: 0,
 
-            error_message: None,
+            error_message: None, // Сообщение об ошибке парсинга
         }
     }
 
+    //=======================================================================================
     // Инвестиционный рассчет по годам
+    //=======================================================================================
     fn invest_calc(&mut self) {
         
+        // Очищаем результаты прошлых расчетов
         self.calc_result_rows.clear();
         
         // Символ валюты
         self.currency_sign = self.currency.to_string().chars().next().unwrap_or('?');
 
-        // Симулируем данные для демонстрации (например, расчет на 13 лет)
-        // В вашем коде это будет реальный вектор, рассчитанный по формуле
-        self.calc_result_rows = vec![
-            HistoryRow { invest_year: 1,  investor_age: 30, calendar_year: 2026, deposits: 260000.0, withdraw: 0.0, interest: 1100.0, end_balance: 17100.0 },
-            HistoryRow { invest_year: 2,  investor_age: 31, calendar_year: 2027, deposits: 260000.0, withdraw: 0.0, interest: 1700.0, end_balance: 24800.0 },
-            HistoryRow { invest_year: 3,  investor_age: 32, calendar_year: 2028, deposits: 260000.0, withdraw: 0.0, interest: 2300.0, end_balance: 33100.0 },
-            HistoryRow { invest_year: 4,  investor_age: 33, calendar_year: 2029, deposits: 260000.0, withdraw: 0.0, interest: 3000.0, end_balance: 42100.0 },
-            HistoryRow { invest_year: 5,  investor_age: 34, calendar_year: 2030, deposits: 260000.0, withdraw: 0.0, interest: 3700.0, end_balance: 51800.0 },
-            HistoryRow { invest_year: 6,  investor_age: 35, calendar_year: 2031, deposits: 260000.0, withdraw: 0.0, interest: 4300.0, end_balance: 63100.0 },
-            HistoryRow { invest_year: 7,  investor_age: 36, calendar_year: 2032, deposits: 260000.0, withdraw: 0.0, interest: 5000.0, end_balance: 72100.0 },
-            HistoryRow { invest_year: 8,  investor_age: 37, calendar_year: 2033, deposits: 260000.0, withdraw: 0.0, interest: 6700.0, end_balance: 81800.0 },
-            HistoryRow { invest_year: 9,  investor_age: 38, calendar_year: 2034, deposits: 0.0, withdraw: 93100.0, interest: 5000.0, end_balance: 92100.0 },
-            HistoryRow { invest_year: 10, investor_age: 39, calendar_year: 2035, deposits: 0.0, withdraw: 102100.0, interest: 6700.0, end_balance: 101800.0 },
-            HistoryRow { invest_year: 11, investor_age: 40, calendar_year: 2036, deposits: 0.0, withdraw: 112100.0, interest: 7700.0, end_balance: 111800.0 },
-            HistoryRow { invest_year: 12, investor_age: 41, calendar_year: 2037, deposits: 0.0, withdraw: 122100.0, interest: 8700.0, end_balance: 121800.0 },
-        ];
-        let new_interest = 9700.0;
-        let new_invest_year: usize = 13;
-        self.calc_result_rows.push(HistoryRow {
-            invest_year: new_invest_year, 
-            investor_age: 42, 
-            calendar_year: 2038, 
-            deposits: 0.0, 
-            withdraw: 132100.0, 
-            interest: new_interest, 
-            end_balance: 131800.0,
-        });
+        // Извлекаем шаг реинвестирования (в месяцах) из энума
+        let reinvest_step = match self.reinvest_period {
+            ReinvestPeriod::Months3 => 3,
+            ReinvestPeriod::Months6 => 6,
+            ReinvestPeriod::Months12 => 12,
+        };
+
+        // Переводим годовую ставку в месячную (сложный процент)
+        // interest_num задан в процентах (например, 12.0 -> 0.12)
+        let annual_rate = self.interest_num / 100.0;
+        let monthly_rate = (1.0 + annual_rate).powf(1.0 / 12.0) - 1.0;
+
+        // Инициализируем переменные состояния для расчета
+        let mut current_balance = self.start_deposit_num;
+        let mut current_monthly_deposit = self.deposit_num;
+        
+        // Переменная для накопления процентов между периодами реинвестирования
+        let mut accumulated_interest = 0.0;
+
+        // Внешний цикл: Идем по инвестиционным годам (от 1 до invest_duration_num)
+        for year_idx in 1..=self.invest_duration_num {
+            // Текущие параметры инвестора и календаря для этой строки (этого года)
+            let current_investor_age = self.investor_age_num + (year_idx - 1);
+            let current_calendar_year = self.calendar_year_num + (year_idx - 1);
+
+            // Счетчики для накопления годовой статистики по строке
+            let mut yearly_deposits = 0.0;
+            let mut yearly_withdraws = 0.0;
+            let mut yearly_interest_earned = 0.0;
+
+            // Внутренний цикл: Идем по месяцам внутри текущего года (1..=12)
+            for month in 1..=12 {
+                
+                // 1. ПОПОЛНЕНИЕ КАПИТАЛА (Проверяем, укладываемся ли в доступные для пополнения годы)
+                if year_idx <= self.deposit_years_num {
+                    let is_deposit_month = match self.deposit_frequency {
+                        DepositFrequency::Monthly => true,
+                        DepositFrequency::EveryTwoMonths => month % 2 == 1, // Каждый нечетный месяц (1, 3, 5...)
+                        DepositFrequency::Quarterly => month % 3 == 1,      // Раз в квартал (1, 4, 7, 10)
+                        DepositFrequency::SemiAnnually => month == 1 || month == 7, // Раз в полгода
+                    };
+
+                    if is_deposit_month {
+                        current_balance += current_monthly_deposit;
+                        yearly_deposits += current_monthly_deposit;
+                    }
+                }
+
+                // 2. ИЗЪЯТИЕ СРЕДСТВ (Ежемесячно, если наступил или прошел год начала изъятий)
+                if year_idx >= self.withdraw_start_num {
+                    // Изъятие происходит только если на балансе есть деньги
+                    let actual_withdraw = if current_balance >= self.withdraw_num {
+                        self.withdraw_num
+                    } else {
+                        current_balance // Забираем остаток, если на балансе меньше нужной суммы
+                    };
+
+                    current_balance -= actual_withdraw;
+                    yearly_withdraws += actual_withdraw;
+                }
+
+                // 3. РАСЧЕТ И НАКОПЛЕНИЕ НАЧИСЛЕННЫХ ПРОЦЕНТОВ ЗА МЕСЯЦ
+                let monthly_interest = current_balance * monthly_rate;
+                accumulated_interest += monthly_interest;
+                yearly_interest_earned += monthly_interest;
+
+                // 4. КАПИТАЛИЗАЦИЯ (РЕИНВЕСТИРОВАНИЕ) ПРОЦЕНТОВ
+                // Проценты падают на баланс только в определенные месяцы (например, каждые 3, 6 или 12 месяцев)
+                if month % reinvest_step == 0 {
+                    current_balance += accumulated_interest;
+                    accumulated_interest = 0.0; // Сбрасываем накопитель для следующего периода
+                }
+            }
+
+            // Если в конце года остались нереинвестированные проценты (для безопасности)
+            if accumulated_interest > 0.0 {
+                current_balance += accumulated_interest;
+                accumulated_interest = 0.0;
+            }
+
+            // Сохраняем результаты за весь прошедший год в структуру строки таблицы
+            self.calc_result_rows.push(CalcHistoryRow {
+                invest_year: year_idx,
+                investor_age: current_investor_age,
+                calendar_year: current_calendar_year,
+                deposits: yearly_deposits,
+                withdraw: yearly_withdraws,
+                interest: yearly_interest_earned,
+                end_balance: current_balance,
+            });
+
+            // 5. ИНДЕКСАЦИЯ НА ИНФЛЯЦИЮ И РОСТ ПОПОЛНЕНИЙ (Применяется в конце каждого года на будущий год)
+            // Рост размера пополнений (например, рост зарплаты)
+            let salary_grow_factor = 1.0 + (self.salary_grow_num / 100.0);
+            current_monthly_deposit *= salary_grow_factor;
+
+            // Корректировка изъятий на размер инфляции (чтобы сохранять покупательскую способность)
+            // Инфляция начинает работу только с первого года изъятия
+            if year_idx >= self.withdraw_start_num {
+                let inflation_factor = 1.0 + (self.inflation_num / 100.0);
+                self.withdraw_num *= inflation_factor;
+            }
+        }
     }
 
     fn text_edits_parsing(&mut self) -> bool {
@@ -353,6 +442,7 @@ impl MyApp {
         let icon_source_demo = egui::include_image!("../assets/button_icon_demo.png");
         let icon_source_save = egui::include_image!("../assets/button_icon_save.png");
         let icon_source_lang = egui::include_image!("../assets/button_icon_lang.png");
+        let icon_source_about = egui::include_image!("../assets/button_icon_about.png");
 
         let icon_sized_calc = egui::Image::new(icon_source_calc)
             .fit_to_exact_size(egui::vec2(button_icon_size, button_icon_size)) // РАЗМЕР ИКОНКИ ТУТ
@@ -366,11 +456,15 @@ impl MyApp {
         let icon_sized_lang = egui::Image::new(icon_source_lang)
             .fit_to_exact_size(egui::vec2(button_icon_size, button_icon_size))
             .corner_radius(3.0);
+        let icon_sized_about = egui::Image::new(icon_source_about)
+            .fit_to_exact_size(egui::vec2(button_icon_size, button_icon_size))
+            .corner_radius(3.0);
 
         let image_btn_calc = egui::Button::image_and_text(icon_sized_calc, "Рассчитать");
         let image_btn_demo = egui::Button::image_and_text(icon_sized_demo, "Демо данные");
         let image_btn_save = egui::Button::image_and_text(icon_sized_save, "Сохранить");
         let image_btn_lang = egui::Button::image_and_text(icon_sized_lang, "English");
+        let image_btn_about = egui::Button::image_and_text(icon_sized_about, "О программе");
         ui.horizontal(|ui| {
             // Инвест рассчет
             if ui.add_sized(egui::vec2(130.0, 50.0), image_btn_calc).clicked() {
@@ -407,14 +501,18 @@ impl MyApp {
             if ui.add_sized(egui::vec2(110.0, 50.0), image_btn_lang).clicked() {
                 // Клик по иконке
             }
+            // О программе
+            if ui.add_sized(egui::vec2(150.0, 50.0), image_btn_about).clicked() {
+                // Клик по иконке            
+            }
         });
     }
 
     fn draw_text_edits(&mut self, ui: &mut egui::Ui) {
         
         // Задаем точные размеры для полей ввода [Ширина, Высота]
-        let edit_size = egui::vec2(300.0, 24.0);
-        let combo_box_width: f32 = 300.0;
+        let edit_size = egui::vec2(310.0, 24.0);
+        let combo_box_width: f32 = 310.0;
         let edit_space: f32 = 7.0;
 
         // ======= СТРОКА 1 =======
@@ -586,9 +684,6 @@ impl MyApp {
     }
 
     fn draw_results_table(&mut self, ui: &mut egui::Ui) {
-        ui.heading("📊 Результаты моделирования роста вашего капитала по годам");
-        ui.add_space(10.0);
-
         // Инициализируем построитель таблиц
         let header_height = 25.0;        // Высота заголовка        
         let row_height = 20.0;           // Высота одной строки данных
@@ -665,7 +760,7 @@ impl MyApp {
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
                         // Красивая красная иконка предупреждения
-                        ui.label(egui::RichText::new("⚠").color(egui::Color32::RED).size(28.0));
+                        ui.label(egui::RichText::new("⚠").color(egui::Color32::RED).size(32.0));
                         ui.label(error_text);
                     });
                     
@@ -690,6 +785,9 @@ impl MyApp {
 
 } // impl MyApp
 
+//=======================================================================================
+// Отрисовка интерфейса приложения
+//=======================================================================================
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -711,6 +809,8 @@ impl eframe::App for MyApp {
             //================================================================
             // Рассчет и трисовка таблицы с результатами
             //================================================================
+            ui.heading("📊 Результаты моделирования роста вашего капитала по годам");
+            ui.add_space(10.0);
             self.draw_results_table(ui);
             ui.add_space(10.0);
 
