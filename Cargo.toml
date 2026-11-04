@@ -7,8 +7,9 @@ edition = "2024"
 rust-version = "1.92"
   
 [dependencies]  
-eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "persistence"] }
-egui_extras = { version = "0.33", features = ["image"] }
+eframe = { version = "0.33.3", default-features = false, features = ["default_fonts", "glow", "persistence"] }
+egui_extras = { version = "0.33.3", features = ["image"] }
+egui_plot = "0.34.1"
 image = { version = "0.25", features = ["png"] }
 
 [profile.release]  

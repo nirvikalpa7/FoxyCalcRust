@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use eframe::egui;
+use egui_plot::{Line, Plot, PlotPoints};
 
 fn configure_app_styles(cc: &eframe::CreationContext<'_>) {
     // 1. Настройка темы Theme::Dark / Theme::Light
@@ -515,6 +516,9 @@ impl MyApp {
         let combo_box_width: f32 = 310.0;
         let edit_space: f32 = 7.0;
 
+        ui.heading("📈 Введите исходные данные для инвест рассчета");
+        ui.add_space(10.0);
+
         // ======= СТРОКА 1 =======
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
@@ -783,6 +787,40 @@ impl MyApp {
         }
     }
 
+    fn plot_graph(&mut self, ui: &mut egui::Ui) {
+        if !self.calc_result_rows.is_empty() {
+            ui.vertical(|ui| {
+                let years_count = self.calc_result_rows.len();
+                ui.heading(format!("⚡ Прогноз ваших инвестиций, {} лет", years_count));
+                ui.add_space(8.0);
+
+                let points: PlotPoints = self.calc_result_rows
+                    .iter()
+                    .map(|row| [row.invest_year as f64, row.end_balance])
+                    .collect();
+
+                // ТЕПЕРЬ СИНТАКСИС РАБОТАЕТ: передаем имя линии и точки, красим в синий
+                let line = Line::new("Капитал", points)
+                    .color(egui::Color32::from_rgb(0, 120, 215)) 
+                    .width(2.5_f32);
+
+                // Настройка самого холста графика
+                Plot::new("investment_growth_plot")
+                    .width(650.0)
+                    .height(380.0)
+                    .allow_zoom(true)
+                    .allow_drag(true)
+                    // В версии 0.33 для белого фона используется метод fill_color
+                    //.background_color(egui::Color32::WHITE) 
+                    .show(ui, |plot_ui| {
+                        plot_ui.line(line);
+                    });
+            });
+        } else {
+            ui.label("Нажмите кнопку 'Рассчитать', чтобы увидеть график прогноза.");
+        }
+    }
+
 } // impl MyApp
 
 //=======================================================================================
@@ -801,18 +839,35 @@ impl eframe::App for MyApp {
             ui.add_space(15.0);
 
             //================================================================
-            // Отрисовка 12 labels и text edits
+            // Делим интерфейс строго на 2 столбца фиксированной пропорции
             //================================================================
-            self.draw_text_edits(ui);
-            ui.add_space(15.0);
+            ui.columns(2, |columns| {
+                // Увеличиваем отступ между колонками для читаемости
+                // Разделяем массив на две независимые изменяемые ссылки
+                let [left_ui, right_ui] = columns else { todo!() };
 
-            //================================================================
-            // Рассчет и трисовка таблицы с результатами
-            //================================================================
-            ui.heading("📊 Результаты моделирования роста вашего капитала по годам");
-            ui.add_space(10.0);
-            self.draw_results_table(ui);
-            ui.add_space(10.0);
+                // --- ЛЕВЫЙ СТОЛБЕЦ ---
+                left_ui.vertical(|ui| {
+                    // Отрисовка 12 labels и text edits
+                    self.draw_text_edits(ui);
+                    ui.add_space(20.0);
+
+                    ui.heading("📊 Результаты моделирования роста вашего капитала по годам");
+                    ui.add_space(10.0);
+                    
+                    // Рендерим таблицу. Теперь она ограничена шириной левой колонки
+                    self.draw_results_table(ui);
+                });
+
+                // --- ПРАВЫЙ СТОЛБЕЦ ---
+                right_ui.vertical(|ui| {
+                    // Отображение графика роста инвестиций (теперь он точно влезет)
+                    self.plot_graph(ui);
+                    
+                    // Сюда можно добавлять элементы, которые будут "ниже" графика
+                    ui.add_space(15.0);
+                });
+            });
 
             //================================================================
             // Отображение MessageBox об ошибке парсинга
