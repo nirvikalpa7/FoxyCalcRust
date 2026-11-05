@@ -22,14 +22,14 @@ fn configure_app_styles(cc: &eframe::CreationContext<'_>) {
     // Применяем стили один раз на всё время работы приложения
     cc.egui_ctx.set_visuals(visuals);
 
-    // 4. Подключаем свой шрифт для корректного рисования символа рубля ₽
+    // 4. Подключаем свой шрифт для корректного рисования всех символов валют
     let mut fonts = egui::FontDefinitions::default();
 
     // Вшиваем файл шрифта в бинарник
     fonts.font_data.insert(
-        "my_font_roboto".to_owned(),
+        "my_font_segoeui".to_owned(),
         std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
-            "../assets/Roboto.ttf"
+            "../assets/segoeui.ttf"
         ))),
     );
 
@@ -38,14 +38,14 @@ fn configure_app_styles(cc: &eframe::CreationContext<'_>) {
         .families
         .entry(egui::FontFamily::Proportional)
         .or_default()
-        .insert(0, "my_font_roboto".to_owned());
+        .insert(0, "my_font_segoeui".to_owned());
 
     // Устанавливаем его же для моноширинного текста (например, в полях ввода, если нужно)
     fonts
         .families
         .entry(egui::FontFamily::Monospace)
         .or_default()
-        .insert(0, "my_font_roboto".to_owned());
+        .insert(0, "my_font_segoeui".to_owned());
 
     // Передаем обновленную коллекцию шрифтов в контекст
     cc.egui_ctx.set_fonts(fonts);
@@ -129,21 +129,33 @@ impl ReinvestPeriod {
 // 2. Валюта инвестиций
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Currency {
-    Rub,
     Usd,
     Eur,
     Gbp,
+    Chf,
     Cny,
+    Rub,
+    Try,
+    Inr,
+    Krw,
+    Thb,
+    Vnd,
 }
 
 impl Currency {
     fn to_string(&self) -> &'static str {
         match self {
-            Self::Rub => "₽ (Рубль)",
             Self::Usd => "$ (Доллар США)",
             Self::Eur => "€ (Евро)",
             Self::Gbp => "£ (Фунт стерлингов)",
-            Self::Cny => "¥ (Юань)",
+            Self::Chf => "₣ (Швейцарский франк)",
+            Self::Cny => "¥ (Юань/Йена)",
+            Self::Rub => "₽ (Рубль)",
+            Self::Try => "₺ (Турецкая лира)",
+            Self::Inr => "₹ (Индийская рупия)",
+            Self::Krw => "₩ (Корейская вона)",
+            Self::Thb => "฿ (Тайский бат)",
+            Self::Vnd => "₫ (Вьетнамский донг)",
         }
     }
 }
@@ -379,6 +391,7 @@ impl MyApp {
         }
     }
 
+    // Парсинг текстовых полей в числовые входные данные для рассчета
     fn text_edits_parsing(&mut self) -> bool {
         // Хелпер для парсинга и валидации дробных чисел с проверкой диапазона
         let parse_f64 = |text: &str, name: &str, min: f64, max: f64| -> Result<f64, String> {
@@ -435,13 +448,49 @@ impl MyApp {
         }
     }
 
+    // Функция отображения ошибки парсинга (MessageBox)
+    fn error_messagebox_show(&mut self, ctx: &egui::Context) {
+        if let Some(error_text) = &self.error_message {
+            // Создаем окно
+            let response = egui::Window::new("Ошибка валидации")
+                .resizable(false)
+                .collapsible(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0)) // Всегда строго по центру
+                .show(ctx, |ui| {
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        // Красивая красная иконка предупреждения
+                        ui.label(egui::RichText::new("⚠").color(egui::Color32::RED).size(32.0));
+                        ui.label(error_text);
+                    });
+                    
+                    ui.add_space(10.0);
+                    
+                    // Если пользователь нажал кнопку ОК, возвращаем true
+                    // Выравниваем кнопку по центру окна
+                    ui.vertical_centered(|ui| {
+                        let ok_btn = egui::Button::new("Ok");
+                        ui.add_sized(egui::vec2(100.0, 30.0), ok_btn).clicked()
+                    }).inner // .inner вытаскивает bool (clicked) из замыкания vertical_centered
+                });
+
+            // Проверяем: закрыл ли пользователь окно (нажал ли на кнопку ОК)
+            // Проверяем: если кнопка ОК была нажата, то внутри будет Some(true)
+            // .flatten() превратит Option<Option<bool>> в простой Option<bool>
+            if response.map(|res| res.inner).flatten().unwrap_or(false) {
+                self.error_message = None;
+            }
+        }
+    }
+
+    // Добавляем в UI главные кнопки с иконками (toolbar)
     fn draw_icon_buttons(&mut self, ui: &mut egui::Ui) {
         let button_icon_size: f32 = 35.0;
 
         // Вшиваем иконку (например, лежащую в папке assets)
         let icon_source_calc = egui::include_image!("../assets/button_icon_calc.png");
         let icon_source_demo = egui::include_image!("../assets/button_icon_demo.png");
-        let icon_source_save = egui::include_image!("../assets/button_icon_save.png");
+        let icon_source_export = egui::include_image!("../assets/button_icon_export.png");
         let icon_source_lang = egui::include_image!("../assets/button_icon_lang.png");
         let icon_source_about = egui::include_image!("../assets/button_icon_about.png");
 
@@ -451,7 +500,7 @@ impl MyApp {
         let icon_sized_demo = egui::Image::new(icon_source_demo)
             .fit_to_exact_size(egui::vec2(button_icon_size, button_icon_size)) 
             .corner_radius(3.0);
-        let icon_sized_save = egui::Image::new(icon_source_save)
+        let icon_sized_export = egui::Image::new(icon_source_export)
             .fit_to_exact_size(egui::vec2(button_icon_size, button_icon_size))
             .corner_radius(3.0);
         let icon_sized_lang = egui::Image::new(icon_source_lang)
@@ -463,8 +512,8 @@ impl MyApp {
 
         let image_btn_calc = egui::Button::image_and_text(icon_sized_calc, "Рассчитать");
         let image_btn_demo = egui::Button::image_and_text(icon_sized_demo, "Демо данные");
-        let image_btn_save = egui::Button::image_and_text(icon_sized_save, "Сохранить");
-        let image_btn_lang = egui::Button::image_and_text(icon_sized_lang, "English");
+        let image_btn_export = egui::Button::image_and_text(icon_sized_export, "Экспорт");
+        let image_btn_lang = egui::Button::image_and_text(icon_sized_lang, "Language");
         let image_btn_about = egui::Button::image_and_text(icon_sized_about, "О программе");
         ui.horizontal(|ui| {
             // Инвест рассчет
@@ -496,10 +545,10 @@ impl MyApp {
                 self.currency = Currency::Rub;
                 self.deposit_frequency = DepositFrequency::Monthly;
             }
-            if ui.add_sized(egui::vec2(130.0, 50.0), image_btn_save).clicked() {
+            if ui.add_sized(egui::vec2(120.0, 50.0), image_btn_export).clicked() {
                 // Клик по иконке
             }
-            if ui.add_sized(egui::vec2(110.0, 50.0), image_btn_lang).clicked() {
+            if ui.add_sized(egui::vec2(120.0, 50.0), image_btn_lang).clicked() {
                 // Клик по иконке
             }
             // О программе
@@ -516,7 +565,7 @@ impl MyApp {
         let combo_box_width: f32 = 310.0;
         let edit_space: f32 = 7.0;
 
-        ui.heading("📈 Введите исходные данные для инвест рассчета");
+        ui.heading("📈 Введите исходные данные для инвест расчета");
         ui.add_space(10.0);
 
         // ======= СТРОКА 1 =======
@@ -559,11 +608,17 @@ impl MyApp {
                     .width(combo_box_width)
                     .show_ui(ui, |ui| {
                         ui.spacing_mut().button_padding.y = 3.0;
-                        ui.selectable_value(&mut self.currency, Currency::Rub, Currency::Rub.to_string());
                         ui.selectable_value(&mut self.currency, Currency::Usd, Currency::Usd.to_string());
                         ui.selectable_value(&mut self.currency, Currency::Eur, Currency::Eur.to_string());
                         ui.selectable_value(&mut self.currency, Currency::Gbp, Currency::Gbp.to_string());
+                        ui.selectable_value(&mut self.currency, Currency::Chf, Currency::Chf.to_string());
                         ui.selectable_value(&mut self.currency, Currency::Cny, Currency::Cny.to_string());
+                        ui.selectable_value(&mut self.currency, Currency::Rub, Currency::Rub.to_string());
+                        ui.selectable_value(&mut self.currency, Currency::Try, Currency::Try.to_string());
+                        ui.selectable_value(&mut self.currency, Currency::Inr, Currency::Inr.to_string());
+                        ui.selectable_value(&mut self.currency, Currency::Krw, Currency::Krw.to_string());
+                        ui.selectable_value(&mut self.currency, Currency::Thb, Currency::Thb.to_string());
+                        ui.selectable_value(&mut self.currency, Currency::Vnd, Currency::Vnd.to_string());
                     });
             });
         });
@@ -687,6 +742,7 @@ impl MyApp {
         });
     }
 
+    // Рисуем в UI таблицу с результатами инвест рассчета
     fn draw_results_table(&mut self, ui: &mut egui::Ui) {
         // Инициализируем построитель таблиц
         let header_height = 25.0;        // Высота заголовка        
@@ -747,51 +803,70 @@ impl MyApp {
                     });
                     
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(format!("+{:.2} {}", data.end_balance, self.currency_sign)).color(egui::Color32::from_rgb(0, 150, 200))); 
+                        ui.label(egui::RichText::new(format!("{:.2} {}", data.end_balance, self.currency_sign)).color(egui::Color32::from_rgb(0, 150, 200))); 
                     });
                 });
             });
     }
 
-    fn error_messagebox_show(&mut self, ctx: &egui::Context) {
-        if let Some(error_text) = &self.error_message {
-            // Создаем окно
-            let response = egui::Window::new("Ошибка валидации")
-                .resizable(false)
-                .collapsible(false)
-                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0)) // Всегда строго по центру
-                .show(ctx, |ui| {
-                    ui.add_space(10.0);
-                    ui.horizontal(|ui| {
-                        // Красивая красная иконка предупреждения
-                        ui.label(egui::RichText::new("⚠").color(egui::Color32::RED).size(32.0));
-                        ui.label(error_text);
-                    });
-                    
-                    ui.add_space(10.0);
-                    
-                    // Если пользователь нажал кнопку ОК, возвращаем true
-                    // Выравниваем кнопку по центру окна
-                    ui.vertical_centered(|ui| {
-                        let ok_btn = egui::Button::new("Ok");
-                        ui.add_sized(egui::vec2(100.0, 30.0), ok_btn).clicked()
-                    }).inner // .inner вытаскивает bool (clicked) из замыкания vertical_centered
-                });
-
-            // Проверяем: закрыл ли пользователь окно (нажал ли на кнопку ОК)
-            // Проверяем: если кнопка ОК была нажата, то внутри будет Some(true)
-            // .flatten() превратит Option<Option<bool>> в простой Option<bool>
-            if response.map(|res| res.inner).flatten().unwrap_or(false) {
-                self.error_message = None;
-            }
-        }
-    }
-
+    // Рисуем график с ростом наших инвестиций (вторая колонка в UI)
     fn plot_graph(&mut self, ui: &mut egui::Ui) {
         if !self.calc_result_rows.is_empty() {
             ui.vertical(|ui| {
                 let years_count = self.calc_result_rows.len();
-                ui.heading(format!("⚡ Прогноз ваших инвестиций, {} лет", years_count));
+                ui.heading(format!("⚡ Прогноз роста ваших инвестиций, {} лет", years_count));
+                ui.add_space(8.0);
+
+                // 1. Точки для ПЕРВОЙ линии (Итоговый капитал)
+                let points_capital: PlotPoints = self.calc_result_rows
+                    .iter()
+                    .map(|row| [row.invest_year as f64, row.end_balance])
+                    .collect();
+
+                let line_capital = Line::new("Инвестиции", points_capital)
+                    .color(egui::Color32::from_rgb(0, 215, 120)) // Зеленая
+                    .width(2.5_f32);
+
+                // 2. Точки для ВТОРОЙ линии (Накопление пополнений с учетом стартового капитала)
+                let mut cumulative_deposits = self.start_deposit_num; // Начинаем со стартового капитала
+                let points_deposits: PlotPoints = self.calc_result_rows
+                    .iter()
+                    .map(|row| {
+                        cumulative_deposits += row.deposits; // Плюсуем пополнения за текущий год
+                        [row.invest_year as f64, cumulative_deposits]
+                    })
+                    .collect();
+
+                let line_deposits = Line::new("Пополнения", points_deposits)
+                    .color(egui::Color32::from_rgb(100, 100, 150)) // Темно-сине-серый
+                    .width(2.5_f32);
+
+                // Настройка самого холста графика
+                Plot::new("investment_growth_plot")
+                    .width(650.0)
+                    .height(410.0)
+                    .allow_zoom(true)
+                    .allow_drag(true)
+                    // ВКЛЮЧАЕМ ОТОБРАЖЕНИЕ ЛЕГЕНДЫ
+                    .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
+                    .show(ui, |plot_ui| {
+                        // Отрисовываем обе линии на одном холсте
+                        plot_ui.line(line_capital);
+                        plot_ui.line(line_deposits);
+                    });
+            });
+        } else {
+            ui.label("Нажмите кнопку 'Рассчитать', чтобы увидеть график прогноза.");
+        }
+    }
+
+    /*
+    // Рисуем график с ростом наших инвестиций (вторая колонка в UI)
+    fn plot_graph(&mut self, ui: &mut egui::Ui) {
+        if !self.calc_result_rows.is_empty() {
+            ui.vertical(|ui| {
+                let years_count = self.calc_result_rows.len();
+                ui.heading(format!("⚡ Прогноз роста ваших инвестиций, {} лет", years_count));
                 ui.add_space(8.0);
 
                 let points: PlotPoints = self.calc_result_rows
@@ -800,14 +875,14 @@ impl MyApp {
                     .collect();
 
                 // ТЕПЕРЬ СИНТАКСИС РАБОТАЕТ: передаем имя линии и точки, красим в синий
-                let line = Line::new("Капитал", points)
+                let line = Line::new("Инвестиции", points)
                     .color(egui::Color32::from_rgb(0, 120, 215)) 
                     .width(2.5_f32);
 
                 // Настройка самого холста графика
                 Plot::new("investment_growth_plot")
                     .width(650.0)
-                    .height(380.0)
+                    .height(410.0)
                     .allow_zoom(true)
                     .allow_drag(true)
                     // В версии 0.33 для белого фона используется метод fill_color
@@ -820,6 +895,7 @@ impl MyApp {
             ui.label("Нажмите кнопку 'Рассчитать', чтобы увидеть график прогноза.");
         }
     }
+    */
 
 } // impl MyApp
 
