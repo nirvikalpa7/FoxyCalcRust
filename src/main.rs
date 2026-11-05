@@ -795,7 +795,9 @@ impl MyApp {
                         ui.label(egui::RichText::new(data.calendar_year.to_string()).color(egui::Color32::from_rgb(160, 70, 160))); 
                     });
 
-                    row.col(|ui| { ui.label(format!("{:.2} {}", data.deposits, self.currency_sign)); });
+                    row.col(|ui| { 
+                        ui.label(egui::RichText::new(format!("{:.2} {}", data.deposits, self.currency_sign)).color(egui::Color32::from_rgb(100, 130, 100)));
+                    });
                     row.col(|ui| { ui.label(format!("{:.2} {}", data.withdraw, self.currency_sign)); });
                     
                     row.col(|ui| {
@@ -803,7 +805,7 @@ impl MyApp {
                     });
                     
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(format!("{:.2} {}", data.end_balance, self.currency_sign)).color(egui::Color32::from_rgb(0, 150, 200))); 
+                        ui.label(egui::RichText::new(format!("{:.2} {}", data.end_balance, self.currency_sign)).color(egui::Color32::from_rgb(0, 140, 225))); 
                     });
                 });
             });
@@ -824,7 +826,7 @@ impl MyApp {
                     .collect();
 
                 let line_capital = Line::new("Инвестиции", points_capital)
-                    .color(egui::Color32::from_rgb(0, 215, 120)) // Зеленая
+                    .color(egui::Color32::from_rgb(0, 140, 225)) // Синяя
                     .width(2.5_f32);
 
                 // 2. Точки для ВТОРОЙ линии (Накопление пополнений с учетом стартового капитала)
@@ -838,7 +840,7 @@ impl MyApp {
                     .collect();
 
                 let line_deposits = Line::new("Пополнения", points_deposits)
-                    .color(egui::Color32::from_rgb(100, 100, 150)) // Темно-сине-серый
+                    .color(egui::Color32::from_rgb(100, 130, 100)) // Темно-серый
                     .width(2.5_f32);
 
                 // Настройка самого холста графика
@@ -859,43 +861,6 @@ impl MyApp {
             ui.label("Нажмите кнопку 'Рассчитать', чтобы увидеть график прогноза.");
         }
     }
-
-    /*
-    // Рисуем график с ростом наших инвестиций (вторая колонка в UI)
-    fn plot_graph(&mut self, ui: &mut egui::Ui) {
-        if !self.calc_result_rows.is_empty() {
-            ui.vertical(|ui| {
-                let years_count = self.calc_result_rows.len();
-                ui.heading(format!("⚡ Прогноз роста ваших инвестиций, {} лет", years_count));
-                ui.add_space(8.0);
-
-                let points: PlotPoints = self.calc_result_rows
-                    .iter()
-                    .map(|row| [row.invest_year as f64, row.end_balance])
-                    .collect();
-
-                // ТЕПЕРЬ СИНТАКСИС РАБОТАЕТ: передаем имя линии и точки, красим в синий
-                let line = Line::new("Инвестиции", points)
-                    .color(egui::Color32::from_rgb(0, 120, 215)) 
-                    .width(2.5_f32);
-
-                // Настройка самого холста графика
-                Plot::new("investment_growth_plot")
-                    .width(650.0)
-                    .height(410.0)
-                    .allow_zoom(true)
-                    .allow_drag(true)
-                    // В версии 0.33 для белого фона используется метод fill_color
-                    //.background_color(egui::Color32::WHITE) 
-                    .show(ui, |plot_ui| {
-                        plot_ui.line(line);
-                    });
-            });
-        } else {
-            ui.label("Нажмите кнопку 'Рассчитать', чтобы увидеть график прогноза.");
-        }
-    }
-    */
 
 } // impl MyApp
 
