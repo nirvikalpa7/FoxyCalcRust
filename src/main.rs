@@ -73,11 +73,13 @@ fn main() -> eframe::Result<()>  {
         height,
     };
 
-    // Передаем иконку в настройки окна
+    // Настраиваем окно
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([400.0, 300.0])
-            .with_icon(icon_data),  // Добавляем иконку сюда
+            .with_inner_size([1340.0, 900.0]) // Размер окна приложения
+            .with_icon(icon_data)             // Добавляем иконку сюда
+           	.with_resizable(false)            // Запрещаем менять размер окна
+	        .with_maximize_button(false),     // Отключаем кнопку развертывания на весь экран
         ..Default::default()
     };
 
@@ -180,6 +182,27 @@ impl DepositFrequency {
     }
 }
 
+// Вспомогательная функция для разделения тысяч пробелами (например: 1520300 -> "1 520 300")
+fn format_thousands(mut n: i64) -> String {
+    if n == 0 { return "0".to_string(); }
+    let mut result = String::new();
+    let is_negative = n < 0;
+    if is_negative { n = n.abs(); }
+    
+    let s = n.to_string();
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+    
+    for (i, &byte) in bytes.iter().enumerate() {
+        result.push(byte as char);
+        if (len - i - 1) % 3 == 0 && i != len - 1 {
+            result.push(' ');
+        }
+    }
+    if is_negative { result.insert(0, '-'); }
+    result
+}
+
 //=======================================================================================
 // MyApp
 //=======================================================================================
@@ -221,6 +244,8 @@ struct MyApp {
     calendar_year_num: usize,   // Календарный год на первый год инвестиций (целое число)
 
     error_message: Option<String>, // Поле для предупреждений об ошибках парсинга
+
+    calc_time_duration: f64, // Время расчета таблицы
 }
 
 impl MyApp {
@@ -272,6 +297,8 @@ impl MyApp {
             calendar_year_num: 0,
 
             error_message: None, // Сообщение об ошибке парсинга
+
+            calc_time_duration: 0.0, // Время расчета таблицы
         }
     }
 
@@ -519,8 +546,14 @@ impl MyApp {
             // Инвест рассчет
             if ui.add_sized(egui::vec2(130.0, 50.0), image_btn_calc).clicked() {
                 if self.text_edits_parsing() {
-                    // тут ваш код годового инвест расчета, так как данные успешно спарсились в _num
+                    // НАЧАЛО ЗАМЕРА: Фиксируем текущую точку времени
+                    let start_time = std::time::Instant::now();
+                    
                     self.invest_calc();
+
+                    // КОНЕЦ ЗАМЕРА: Считаем прошедшее время и переводим в миллисекунды (f64)
+                    let duration = start_time.elapsed();
+                    self.calc_time_duration = duration.as_secs_f64() * 1000.0;
                 }
             }
             // Загрузить демо данные
@@ -789,28 +822,34 @@ impl MyApp {
                     row.col(|ui| { ui.label(data.invest_year.to_string()); });
                     
                     row.col(|ui| { 
-                        ui.label(egui::RichText::new(data.investor_age.to_string()).color(egui::Color32::from_rgb(160, 70, 160))); 
+                        ui.label(egui::RichText::new(data.investor_age.to_string())
+                            .color(egui::Color32::from_rgb(160, 70, 160))); 
                     });
                     row.col(|ui| { 
-                        ui.label(egui::RichText::new(data.calendar_year.to_string()).color(egui::Color32::from_rgb(160, 70, 160))); 
+                        ui.label(egui::RichText::new(data.calendar_year.to_string())
+                            .color(egui::Color32::from_rgb(160, 70, 160))); 
                     });
 
                     row.col(|ui| { 
-                        ui.label(egui::RichText::new(format!("{:.2} {}", data.deposits, self.currency_sign)).color(egui::Color32::from_rgb(100, 130, 100)));
+                        ui.label(egui::RichText::new(format!("{} {}", format_thousands(data.deposits as i64), self.currency_sign))
+                            .color(egui::Color32::from_rgb(100, 130, 100)));
                     });
-                    row.col(|ui| { ui.label(format!("{:.2} {}", data.withdraw, self.currency_sign)); });
+                    row.col(|ui| { ui.label(format!("{} {}", format_thousands(data.withdraw as i64), self.currency_sign)); });
                     
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(format!("+{:.2} {}", data.interest, self.currency_sign)).color(egui::Color32::from_rgb(46, 204, 113))); 
+                        ui.label(egui::RichText::new(format!("+{} {}", format_thousands(data.interest as i64), self.currency_sign))
+                            .color(egui::Color32::from_rgb(46, 204, 113))); 
                     });
                     
                     row.col(|ui| {
-                        ui.label(egui::RichText::new(format!("{:.2} {}", data.end_balance, self.currency_sign)).color(egui::Color32::from_rgb(0, 140, 225))); 
+                        ui.label(egui::RichText::new(format!("{} {}", format_thousands(data.end_balance as i64), self.currency_sign))
+                            .color(egui::Color32::from_rgb(0, 140, 225))); 
                     });
                 });
             });
     }
 
+    // Рисуем график с ростом наших инвестиций (вторая колонка в UI)
     // Рисуем график с ростом наших инвестиций (вторая колонка в UI)
     fn plot_graph(&mut self, ui: &mut egui::Ui) {
         if !self.calc_result_rows.is_empty() {
@@ -827,7 +866,7 @@ impl MyApp {
 
                 let line_capital = Line::new("Инвестиции", points_capital)
                     .color(egui::Color32::from_rgb(0, 140, 225)) // Синяя
-                    .width(2.5_f32);
+                    .width(3.0_f32);
 
                 // 2. Точки для ВТОРОЙ линии (Накопление пополнений с учетом стартового капитала)
                 let mut cumulative_deposits = self.start_deposit_num; // Начинаем со стартового капитала
@@ -841,12 +880,18 @@ impl MyApp {
 
                 let line_deposits = Line::new("Пополнения", points_deposits)
                     .color(egui::Color32::from_rgb(100, 130, 100)) // Темно-серый
-                    .width(2.5_f32);
+                    .width(3.0_f32);
+
+                // Формируем текст для оси Y, например: "Капитал, $"
+                let y_label_text = format!("Капитал, {}", self.currency_sign);
 
                 // Настройка самого холста графика
                 Plot::new("investment_growth_plot")
                     .width(650.0)
                     .height(410.0)
+                    // ДОБАВЛЯЕМ ТЕКСТОВЫЕ ПОДПИСИ ОСЕЙ ДЛЯ ВЕРСИИ 0.33
+                    .x_axis_label("Срок инвестирования (годы)")
+                    .y_axis_label(y_label_text)
                     .allow_zoom(true)
                     .allow_drag(true)
                     // ВКЛЮЧАЕМ ОТОБРАЖЕНИЕ ЛЕГЕНДЫ
@@ -869,6 +914,21 @@ impl MyApp {
 //=======================================================================================
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        
+        egui::TopBottomPanel::bottom("status_bar")
+        .resizable(false)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                // Выводим текст с форматированием до 4 знаков после запятой
+                ui.label(format!("Расчет занял время: {:.4} мс", self.calc_time_duration));
+                
+                // Добавим разделитель и выведем дополнительную информацию
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.weak("(c) Sidelnikov Dmitriy, 2026");
+                });
+            });
+        });
+        
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("🖩 Расширенный инвест калькулятор с пополнением, изъятием, инфляцией и ростом зарплаты");
             ui.add_space(10.0);
@@ -885,7 +945,7 @@ impl eframe::App for MyApp {
             ui.columns(2, |columns| {
                 // Увеличиваем отступ между колонками для читаемости
                 // Разделяем массив на две независимые изменяемые ссылки
-                let [left_ui, right_ui] = columns else { todo!() };
+                let [left_ui, right_ui] = columns else { panic!("In the update function, 2 columns are expected in the UI") };
 
                 // --- ЛЕВЫЙ СТОЛБЕЦ ---
                 left_ui.vertical(|ui| {
