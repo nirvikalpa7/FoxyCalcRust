@@ -591,6 +591,7 @@ impl MyApp {
         });
     }
 
+    // Добавляем в UI Edits и ComboBoxes
     fn draw_text_edits(&mut self, ui: &mut egui::Ui) {
         
         // Задаем точные размеры для полей ввода [Ширина, Высота]
@@ -598,7 +599,7 @@ impl MyApp {
         let combo_box_width: f32 = 310.0;
         let edit_space: f32 = 7.0;
 
-        ui.heading("📈 Введите исходные данные для инвест расчета");
+        ui.heading("📈 Введите исходные данные для инвестиционный расчета");
         ui.add_space(10.0);
 
         // ======= СТРОКА 1 =======
@@ -812,6 +813,7 @@ impl MyApp {
             })
             
             // Заполняем таблицу данными
+            // Дробная часть в таблице не отображается, маленькие пополнения, изъятия и пр. менее 1.0 будут нулями
             .body(|body| {
                 // В метод rows передаем общее количество строк и высоту одной строки
                 body.rows(row_height, self.calc_result_rows.len(), |mut row| {
@@ -830,17 +832,37 @@ impl MyApp {
                             .color(egui::Color32::from_rgb(160, 70, 160))); 
                     });
 
+                    // Столбец - пополнения
+                    let deposits_amount = data.deposits as i64;
+                    let deposits_str = if deposits_amount > 0 {
+                        format!("+{} {}", format_thousands(deposits_amount), self.currency_sign)
+                    } else {
+                        format!("{} {}", format_thousands(deposits_amount), self.currency_sign)
+                    };
                     row.col(|ui| { 
-                        ui.label(egui::RichText::new(format!("{} {}", format_thousands(data.deposits as i64), self.currency_sign))
+                        ui.label(egui::RichText::new(deposits_str)
                             .color(egui::Color32::from_rgb(100, 130, 100)));
                     });
-                    row.col(|ui| { ui.label(format!("{} {}", format_thousands(data.withdraw as i64), self.currency_sign)); });
-                    
+
+                    // Столбец - изъятия
+                    let withdraw_amount = data.withdraw as i64;
+                    let withdraw_str = if withdraw_amount > 0 {
+                        format!("-{} {}", format_thousands(withdraw_amount), self.currency_sign)
+                    } else {
+                        format!("{} {}", format_thousands(withdraw_amount), self.currency_sign)
+                    };
+                    row.col(|ui| {
+                        ui.label(egui::RichText::new(withdraw_str)
+                            .color(egui::Color32::from_rgb(200, 70, 70))); 
+                    });                    
+
+                    // Столбец - проценты
                     row.col(|ui| {
                         ui.label(egui::RichText::new(format!("+{} {}", format_thousands(data.interest as i64), self.currency_sign))
                             .color(egui::Color32::from_rgb(46, 204, 113))); 
                     });
                     
+                    // Столбец - итоговый баланс года
                     row.col(|ui| {
                         ui.label(egui::RichText::new(format!("{} {}", format_thousands(data.end_balance as i64), self.currency_sign))
                             .color(egui::Color32::from_rgb(0, 140, 225))); 
@@ -850,13 +872,12 @@ impl MyApp {
     }
 
     // Рисуем график с ростом наших инвестиций (вторая колонка в UI)
-    // Рисуем график с ростом наших инвестиций (вторая колонка в UI)
     fn plot_graph(&mut self, ui: &mut egui::Ui) {
         if !self.calc_result_rows.is_empty() {
             ui.vertical(|ui| {
                 let years_count = self.calc_result_rows.len();
                 ui.heading(format!("⚡ Прогноз роста ваших инвестиций, {} лет", years_count));
-                ui.add_space(8.0);
+                ui.add_space(10.0);
 
                 // 1. Точки для ПЕРВОЙ линии (Итоговый капитал)
                 let points_capital: PlotPoints = self.calc_result_rows
@@ -897,14 +918,47 @@ impl MyApp {
                     // ВКЛЮЧАЕМ ОТОБРАЖЕНИЕ ЛЕГЕНДЫ
                     .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
                     .show(ui, |plot_ui| {
-                        // Отрисовываем обе линии на одном холсте
+                        // 1. Отрисовываем обе линии на одном холсте
                         plot_ui.line(line_capital);
                         plot_ui.line(line_deposits);
+
+                        if self.withdraw_start_num > 0 {
+                            // 2. Добавляем кастомную вертикальную линию (например, на 10-й инвест-год)
+                            // Задаем координату X. Например, берем год начала изъятий
+                            let target_x = self.withdraw_start_num as f64; 
+                            
+                            let vertical_line = egui_plot::VLine::new("Начало изъятий", target_x)
+                                .color(egui::Color32::from_rgb(240, 70, 70)) // Мягкий красный цвет
+                                .width(1.5_f32)
+                                .style(egui_plot::LineStyle::Dashed { length: 6.0 }); // Делаем линию пунктирной
+                                
+                            plot_ui.vline(vertical_line);
+
+                            // 3. Рисуем цветную точку-маркер на пересечении
+                            // Находим строку данных для нужного года, чтобы узнать точный баланс (координату Y)
+                            if let Some(row) = self.calc_result_rows.iter().find(|r| r.invest_year == self.withdraw_start_num) {
+                                let target_y = row.end_balance;
+
+                                // Создаем точку
+                                let marker_point = egui_plot::Points::new("", vec![[target_x, target_y]])
+                                    .color(egui::Color32::from_rgb(240, 70, 70)) // Ярко-красный цвет точки
+                                    .radius(6.0_f32) // Размер (радиус) точки в пикселях
+                                    .shape(egui_plot::MarkerShape::Circle); // Форма (Circle, Square, Diamond, Cross и др.)
+
+                                plot_ui.points(marker_point);
+                            }
+                        }
                     });
             });
         } else {
             ui.label("Нажмите кнопку 'Рассчитать', чтобы увидеть график прогноза.");
         }
+    }
+
+    // Рисуем UI для вашего текущего инвест портфеля
+    fn draw_current_portfolio(&mut self, ui: &mut egui::Ui) {
+        ui.heading("💰 Ваш текущий инвестиционный портфель");
+        ui.add_space(10.0);
     }
 
 } // impl MyApp
@@ -930,7 +984,7 @@ impl eframe::App for MyApp {
         });
         
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("🖩 Расширенный инвест калькулятор с пополнением, изъятием, инфляцией и ростом зарплаты");
+            ui.heading("🖩 Расширенный инвестиционный калькулятор с пополнением, изъятием, инфляцией и ростом зарплаты");
             ui.add_space(10.0);
 
             //================================================================
@@ -967,6 +1021,9 @@ impl eframe::App for MyApp {
                     
                     // Сюда можно добавлять элементы, которые будут "ниже" графика
                     ui.add_space(15.0);
+                    
+                    // Рисуем UI для вашего текущего инвест портфеля
+                    self.draw_current_portfolio(ui);
                 });
             });
 
