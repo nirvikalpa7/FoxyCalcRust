@@ -203,6 +203,22 @@ fn format_thousands(mut n: i64) -> String {
     result
 }
 
+// Возвращает правильную форму слова "год/года/лет" в зависимости от числа
+fn get_russian_years_suffix(years: usize) -> &'static str {
+    let remainder_10 = years % 10;
+    let remainder_100 = years % 100;
+
+    if (11..=19).contains(&remainder_100) {
+        "лет" // Исключения: 11-19, 111-119 и т.д.
+    } else {
+        match remainder_10 {
+            1 => "год",
+            2 | 3 | 4 => "года",
+            _ => "лет", // 0, 5, 6, 7, 8, 9
+        }
+    }
+}
+
 //=======================================================================================
 // MyApp
 //=======================================================================================
@@ -213,11 +229,11 @@ struct MyApp {
     start_deposit_text: String,     // Начальный капитал
     deposit_text: String,           // Размер пополнения
     deposit_years_text: String,     // Сколько лет делаем пополнения
-    withdraw_text: String,          // Размер ежемесячного изъятия
-    withdraw_start_text: String,    // Год, начала изъятий
-    inflation_text: String,         // Годовой размер инфляции, проценты
-    salary_grow_text: String,       // Годовой рост пополнения, проценты
-    investor_age_text: String,   // Возраст инвестора на первый год инвестиций
+    withdraw_text: String,          // Размер ежемесячного изъятия (поле не обязательное)
+    withdraw_start_text: String,    // Год, начала изъятий (поле не обязательное)
+    inflation_text: String,         // Годовой размер инфляции, проценты (поле не обязательное)
+    salary_grow_text: String,       // Годовой рост пополнения, проценты (поле не обязательное)
+    investor_age_text: String,      // Возраст инвестора на первый год инвестиций
     calendar_year_text: String,     // Календарный год на первый год инвестиций
 
     // Вектор для сохранения результатов инвест рассчетов
@@ -361,8 +377,8 @@ impl MyApp {
                     }
                 }
 
-                // 2. ИЗЪЯТИЕ СРЕДСТВ (Ежемесячно, если наступил или прошел год начала изъятий)
-                if year_idx >= self.withdraw_start_num {
+                // 2. ИЗЪЯТИЕ СРЕДСТВ (Ежемесячно, если наступил или прошел год начала изъятий) и если изъятие было заданно
+                if self.withdraw_start_num > 0 && self.withdraw_num > 0.0 && year_idx >= self.withdraw_start_num {
                     // Изъятие происходит только если на балансе есть деньги
                     let actual_withdraw = if current_balance >= self.withdraw_num {
                         self.withdraw_num
@@ -405,13 +421,15 @@ impl MyApp {
             });
 
             // 5. ИНДЕКСАЦИЯ НА ИНФЛЯЦИЮ И РОСТ ПОПОЛНЕНИЙ (Применяется в конце каждого года на будущий год)
-            // Рост размера пополнений (например, рост зарплаты)
-            let salary_grow_factor = 1.0 + (self.salary_grow_num / 100.0);
-            current_monthly_deposit *= salary_grow_factor;
+            // Рост размера пополнений (например, рост зарплаты), если он был задан
+            if self.salary_grow_num > 0.0 {
+                let salary_grow_factor = 1.0 + (self.salary_grow_num / 100.0);
+                current_monthly_deposit *= salary_grow_factor;
+            }
 
-            // Корректировка изъятий на размер инфляции (чтобы сохранять покупательскую способность)
-            // Инфляция начинает работу только с первого года изъятия
-            if year_idx >= self.withdraw_start_num {
+            // 6. Корректировка изъятий на размер инфляции (чтобы сохранять покупательскую способность)
+            // Инфляция начинает работу только с первого года изъятия, если эти 3 необходимх параметра были заданны
+            if self.withdraw_start_num > 0 && self.withdraw_num > 0.0 && self.inflation_num > 0.0 && year_idx >= self.withdraw_start_num {
                 let inflation_factor = 1.0 + (self.inflation_num / 100.0);
                 self.withdraw_num *= inflation_factor;
             }
@@ -420,12 +438,19 @@ impl MyApp {
 
     // Парсинг текстовых полей в числовые входные данные для рассчета
     fn text_edits_parsing(&mut self) -> bool {
+
+        // 1. Автоподстановка "0" для пустых или состоящих из пробелов необязательных полей
+        if self.withdraw_text.trim().is_empty() { self.withdraw_text = "0".to_string(); }
+        if self.withdraw_start_text.trim().is_empty() { self.withdraw_start_text = "0".to_string(); }
+        if self.inflation_text.trim().is_empty() { self.inflation_text = "0".to_string(); }
+        if self.salary_grow_text.trim().is_empty() { self.salary_grow_text = "0".to_string(); }
+
         // Хелпер для парсинга и валидации дробных чисел с проверкой диапазона
         let parse_f64 = |text: &str, name: &str, min: f64, max: f64| -> Result<f64, String> {
             let val: f64 = text.trim().replace(',', ".").parse()
-                .map_err(|_| format!("Поле '{}' должно быть числом (например: 12.5)", name))?;
+                .map_err(|_| format!("Ошибка. Поле '{}' должно быть числом (например: 12.5)", name))?;
             if val < min || val > max {
-                return Err(format!("Значение в поле '{}' должно быть в диапазоне от {} до {}", name, min, max));
+                return Err(format!("Ошибка. Значение в поле '{}' должно быть в диапазоне от {} до {}", name, min, max));
             }
             Ok(val)
         };
@@ -433,9 +458,9 @@ impl MyApp {
         // Хелпер для парсинга и валидации целых чисел с проверкой диапазона
         let parse_usize = |text: &str, name: &str, min: usize, max: usize| -> Result<usize, String> {
             let val: usize = text.trim().parse()
-                .map_err(|_| format!("Поле '{}' должно быть целым положительным числом", name))?;
+                .map_err(|_| format!("Ошибка. Поле '{}' должно быть целым положительным числом", name))?;
             if val < min || val > max {
-                return Err(format!("Значение в поле '{}' должно быть в диапазоне от {} до {}", name, min, max));
+                return Err(format!("Ошибка. Значение в поле '{}' должно быть в диапазоне от {} до {}", name, min, max));
             }
             Ok(val)
         };
@@ -448,15 +473,21 @@ impl MyApp {
             self.deposit_num = parse_f64(&self.deposit_text, "Размер пополнения", 0.0, f64::MAX)?;
             self.deposit_years_num = parse_usize(&self.deposit_years_text, "Сколько лет делаем пополнения", 0, self.invest_duration_num)?;
             self.withdraw_num = parse_f64(&self.withdraw_text, "Размер ежемесячного изъятия", 0.0, f64::MAX)?;
-            self.withdraw_start_num = parse_usize(&self.withdraw_start_text, "Инвест год начала изъятий", 1, self.invest_duration_num + 1)?;
+            self.withdraw_start_num = parse_usize(&self.withdraw_start_text, "Инвест год начала изъятий", 0, self.invest_duration_num + 1)?;
             self.inflation_num = parse_f64(&self.inflation_text, "Размер инфляции", 0.0, 100.0)?;
             self.salary_grow_num = parse_f64(&self.salary_grow_text, "Рост пополнения", 0.0, 100.0)?;
             self.investor_age_num = parse_usize(&self.investor_age_text, "Возраст инвестора", 0, 120)?;
-            self.calendar_year_num = parse_usize(&self.calendar_year_text, "Календарный год", 1900, 2200)?;
+            self.calendar_year_num = parse_usize(&self.calendar_year_text, "Календарный год", 1800, 2200)?;
             
-            // Дополнительная кросс-валидация (пример):
+            // Дополнительные кросс-валидации
             if self.deposit_years_num > self.invest_duration_num {
-                return Err("Срок пополнений не может быть больше всей длительности инвестиций".to_string());
+                return Err("Ошибка. Срок пополнений не может быть больше всей длительности инвестиций".to_string());
+            }
+            if self.withdraw_num > 0.0 && self.withdraw_start_num == 0 {
+                return Err("Ошибка. Вы задали значение для изъятий, но не задали корректный год начала для них".to_string());
+            }
+            if self.inflation_num > 0.0 && self.withdraw_num == 0.0 && self.withdraw_start_num == 0 {
+                return Err("Ошибка. Вы задали инфляцию для изъятий (рассходов), но не задали размер изъятия и корректный год начала списаний".to_string());
             }
 
             Ok(())
@@ -871,12 +902,14 @@ impl MyApp {
             });
     }
 
+
     // Рисуем график с ростом наших инвестиций (вторая колонка в UI)
     fn plot_graph(&mut self, ui: &mut egui::Ui) {
         if !self.calc_result_rows.is_empty() {
             ui.vertical(|ui| {
                 let years_count = self.calc_result_rows.len();
-                ui.heading(format!("⚡ Прогноз роста ваших инвестиций, {} лет", years_count));
+                ui.heading(format!("⚡ Прогноз роста ваших инвестиций, {} {}", 
+                    years_count, get_russian_years_suffix(years_count)));
                 ui.add_space(10.0);
 
                 // 1. Точки для ПЕРВОЙ линии (Итоговый капитал)
