@@ -1008,7 +1008,11 @@ impl eframe::App for MyApp {
             ui.horizontal(|ui| {
                 // Выводим текст с форматированием до 4 знаков после запятой
                 ui.label(format!("Расчет занял время: {:.4} мс", self.calc_time_duration));
-                
+                ui.separator();
+                ui.label("Пополнения делаются в первый месяц интервала пополнения");
+                ui.separator();
+                ui.label("При закрытии приложения исходные данные и инвест портфель сохраняются");
+
                 // Добавим разделитель и выведем дополнительную информацию
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.weak("(c) Sidelnikov Dmitriy, 2026");
