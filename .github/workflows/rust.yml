@@ -14,15 +14,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Rust Cache
-      uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --verbose
 
-     Sir, для eframe/egui на Windows не нужны сторонние C-библиотеки,
-     поэтому обычныйcargo build отработает идеально.
-    - name: Build
-      run: cargo build --verbose
-
-    - name: Run tests
-      run: cargo test --verbose
+      - name: Run tests
+        run: cargo test --verbose
