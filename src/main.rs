@@ -929,7 +929,7 @@ impl MyApp {
     }
 
     // Моделирование текущего инвестиционного портфеля
-    fn draw_portfolio_manager(&mut self, ui: &mut egui::Ui) {
+    /*fn draw_portfolio_manager(&mut self, ui: &mut egui::Ui) {
         ui.heading("💼 Ваш текущий инвестиционный портфель");
         ui.add_space(10.0);
 
@@ -1058,7 +1058,150 @@ impl MyApp {
                 }
             });
         });
+    }*/
+
+    // Моделирование текущего инвестиционного портфеля
+    fn draw_portfolio_manager(&mut self, ui: &mut egui::Ui) {
+        ui.heading("💼 Ваш текущий инвестиционный портфель");
+        ui.add_space(10.0);
+
+        // Считаем общую стоимость портфеля
+        let total_portfolio_value: f64 = self.portfolio_assets.iter().map(|a| a.value).sum();
+
+        // Делим пространство под графиком (650px) на две половины
+        ui.columns(2, |columns| {
+            let [left_col, right_col] = columns else { panic!("In the draw_portfolio_manager function, 2 columns are expected in the UI") };
+
+            // ================= ЛЕВАЯ ПОЛОВИНА: Форма добавления =================
+            left_col.vertical(|ui| {
+                let edit_width = egui::vec2(310.0, 24.0);
+                let combo_box_width: f32 = 310.0;
+
+                // 1. Комбобокс классов активов
+                ui.label(egui::RichText::new("Выберите категорию актива: *"));
+                ui.spacing_mut().button_padding.y = 4.0;
+                egui::ComboBox::from_id_salt("portfolio_asset_class_combo")
+                    .selected_text(self.selected_asset_class.to_string())
+                    .width(combo_box_width)
+                    .show_ui(ui, |ui| {
+                        for class in AssetClass::all() {
+                            ui.selectable_value(&mut self.selected_asset_class, *class, class.to_string());
+                        }
+                    });
+                ui.add_space(8.0);
+
+                // 2. Эдит для стоимости
+                ui.label(egui::RichText::new("Стоимость актива: *"));
+                ui.add_sized(edit_width, egui::TextEdit::singleline(&mut self.asset_amount_text).hint_text("25000"));
+                ui.add_space(8.0);
+
+                // 3. Эдит для специфического имени
+                ui.label(egui::RichText::new("Свой актив (необязательно):"));
+                ui.add_sized(edit_width, egui::TextEdit::singleline(&mut self.custom_asset_name).hint_text("Серебро"));
+                ui.add_space(15.0);
+
+                // Кнопки управления и лейбл суммы
+                ui.horizontal(|ui| {
+                    let can_add = !self.asset_amount_text.trim().is_empty();
+                    
+                    // ИСПРАВЛЕНИЕ: Используем add_enabled + min_size для фиксации размера
+                    let add_btn = egui::Button::new("➕ Добавить актив").min_size(egui::vec2(140.0, 24.0));
+                    if ui.add_enabled(can_add, add_btn).clicked() {
+                        // Валидация стоимости
+                        let parsed_amount = self.asset_amount_text.trim().replace(',', ".");
+                        match parsed_amount.parse::<f64>() {
+                            Ok(amount) if amount > 0.0 => {
+                                let max_portfolio_assets: usize = 10;
+                                if self.portfolio_assets.len() >= max_portfolio_assets {
+                                    self.error_message = Some(format!("Максимальное количество активов ограничено {} строками!", max_portfolio_assets));
+                                } else {
+                                    let asset_name = if self.custom_asset_name.trim().is_empty() {
+                                        self.selected_asset_class.to_string().to_string()
+                                    } else {
+                                        self.custom_asset_name.trim().to_string()
+                                    };
+
+                                    self.portfolio_assets.push(PortfolioAsset {
+                                        name: asset_name,
+                                        value: amount,
+                                    });
+
+                                    self.asset_amount_text.clear();
+                                    self.custom_asset_name.clear();
+                                }
+                            }
+                            _ => {
+                                self.error_message = Some("Укажите корректную стоимость актива (положительное число)!".to_string());
+                            }
+                        }
+                    }
+
+                    let has_assets = !self.portfolio_assets.is_empty();
+                    
+                    // ИСПРАВЛЕНИЕ: Используем add_enabled + min_size для фиксации размера
+                    let clear_btn = egui::Button::new("🗑 Очистить портфель").min_size(egui::vec2(160.0, 24.0));
+                    if ui.add_enabled(has_assets, clear_btn).clicked() {
+                        self.portfolio_assets.clear();
+                    }
+                });
+
+                ui.add_space(12.0);
+                let yellow_color = egui::Color32::from_rgb(180, 180, 0);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "Размер вашего портфеля: {} {}", 
+                        format_thousands(total_portfolio_value as i64), 
+                        self.currency_sign
+                    ))
+                    .strong()
+                    .size(14.0)
+                    .color(yellow_color)
+                );
+            });
+
+            // ================= ПРАВАЯ ПОЛОВИНА: Список добавленных активов =================
+            right_col.vertical(|ui| {
+                if self.portfolio_assets.is_empty() {
+                    ui.weak("Портфель пуст. Добавьте активы слева.");
+                } else {
+                    let mut asset_to_remove = None;
+                    
+                    // Мягкий серый цвет для заднего фона текстовых полей
+				    let readonly_bg = ui.visuals().code_bg_color; 
+				
+				    // Переопределяем цвет, который egui использует специально для подложки TextEdit
+				    ui.visuals_mut().extreme_bg_color = readonly_bg;
+
+                    // Циклом выводим строки элементов (максимум 10)
+                    for (idx, asset) in self.portfolio_assets.iter().enumerate() {
+                        ui.horizontal(|ui| {
+                            // 1. Имя актива (Readonly с серым фоном)
+                            let mut name_tmp = asset.name.clone();
+                            ui.add(egui::TextEdit::singleline(&mut name_tmp).interactive(false).desired_width(150.0));
+
+                            // 2. Стоимость актива (Readonly с серым фоном)
+                            let mut val_str = format!("{} {}", format_thousands(asset.value as i64), self.currency_sign);
+                            ui.add(egui::TextEdit::singleline(&mut val_str).interactive(false).desired_width(110.0));
+
+                            // 3. Кнопка-крестик для удаления
+                            if ui.button(egui::RichText::new("❌").color(egui::Color32::RED)).clicked() {
+                                asset_to_remove = Some(idx);
+                            }
+                        });
+                    }
+
+                    // Возвращаем глобальные стили виджетов в исходное состояние
+                    ui.reset_style();
+
+                    // Если была нажата кнопка удаления — вырезаем из вектора
+                    if let Some(idx) = asset_to_remove {
+                        self.portfolio_assets.remove(idx);
+                    }
+                }
+            });
+        });
     }
+
 
 } // impl MyApp
 
