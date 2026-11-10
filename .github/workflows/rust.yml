@@ -11,14 +11,11 @@ env:
 
 jobs:
   build:
-    # ИСПРАВЛЕНИЕ: Меняем операционную систему сервера сборки на Windows
     runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
 
-    # Полезное улучшение: кэширование зависимостей Cargo.
-    # С ним последующие сборки на GitHub будут идти в 3-5 раз быстрее!
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
 
