@@ -182,3 +182,74 @@ pub struct PortfolioAsset {
 }
 
 //=======================================================================================
+// Юнит тесты для вспомогательных функций
+//=======================================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*; // Импортируем тестируемые функции из родительского модуля utility
+
+    #[test]
+    fn test_format_thousands_basic() {
+        // Простые и граничные случаи
+        assert_eq!(format_thousands(0), "0");
+        assert_eq!(format_thousands(5), "5");
+        assert_eq!(format_thousands(10), "10");
+        assert_eq!(format_thousands(999), "999");
+    }
+
+    #[test]
+    fn test_format_thousands_large_numbers() {
+        // Проверка правильного разделения разрядов пробелами
+        assert_eq!(format_thousands(1000), "1 000");
+        assert_eq!(format_thousands(1_500_300), "1 500 300"); // 1.5 миллиона
+        assert_eq!(format_thousands(1_000_000_000), "1 000 000 000"); // 1 миллиард
+        assert_eq!(format_thousands(100_000_000_000), "100 000 000 000"); // 100 миллиардов
+    }
+
+    #[test]
+    fn test_format_thousands_negative_numbers() {
+        // Проверка сохранения знака минус для отрицательных значений
+        assert_eq!(format_thousands(-1), "-1");
+        assert_eq!(format_thousands(-7), "-7");
+        assert_eq!(format_thousands(-1250), "-1 250");
+        assert_eq!(format_thousands(-7999999), "-7 999 999");
+    }
+
+    #[test]
+    fn test_years_suffix_singular() {
+        // Заканчиваются на 1 (кроме 11): должен быть "год"
+        assert_eq!(get_russian_years_suffix(1), "год");
+        assert_eq!(get_russian_years_suffix(21), "год");
+        assert_eq!(get_russian_years_suffix(101), "год");
+    }
+
+    #[test]
+    fn test_years_suffix_paucal() {
+        // Заканчиваются на 2, 3, 4 (кроме 12, 13, 14): должно быть "года"
+        assert_eq!(get_russian_years_suffix(2), "года");
+        assert_eq!(get_russian_years_suffix(4), "года");
+        assert_eq!(get_russian_years_suffix(33), "года");
+        assert_eq!(get_russian_years_suffix(94), "года");
+    }
+
+    #[test]
+    fn test_years_suffix_plural() {
+        // Заканчиваются на 0, 5-9: должно быть "лет"
+        assert_eq!(get_russian_years_suffix(0), "лет");
+        assert_eq!(get_russian_years_suffix(5), "лет");
+        assert_eq!(get_russian_years_suffix(9), "лет");
+        assert_eq!(get_russian_years_suffix(40), "лет");
+        assert_eq!(get_russian_years_suffix(78), "лет");
+    }
+
+    #[test]
+    fn test_years_suffix_exceptions_11_19() {
+        // Важнейшие исключения русского языка: от 11 до 19 всегда "лет"
+        assert_eq!(get_russian_years_suffix(11), "лет");
+        assert_eq!(get_russian_years_suffix(12), "лет");
+        assert_eq!(get_russian_years_suffix(14), "лет");
+        assert_eq!(get_russian_years_suffix(19), "лет");
+        assert_eq!(get_russian_years_suffix(112), "лет"); // проверка на сотнях
+    }
+}
