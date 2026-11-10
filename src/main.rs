@@ -220,6 +220,61 @@ fn get_russian_years_suffix(years: usize) -> &'static str {
 }
 
 //=======================================================================================
+// Моделирование текущего инвестиционного портфеля
+//=======================================================================================
+
+// Классические типы активов для комбобокса
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssetClass {
+    Cash,
+    BankDeposit,
+    Gold,
+    PreciousMetals,
+    Stocks,
+    DividendStocks,
+    Bonds,
+    Funds,
+    Crypto,
+    RealEstate,
+    CommercialRealEstate,
+    MovableProperty,
+}
+
+impl AssetClass {
+    fn to_string(&self) -> &'static str {
+        match self {
+            Self::Cash => "Наличные",
+            Self::BankDeposit => "Банковский вклад",
+            Self::Gold => "Золото",
+            Self::PreciousMetals => "Драгоценные металлы",
+            Self::Stocks => "Акции",
+            Self::DividendStocks => "Дивидендные акции",
+            Self::Bonds => "Облигации",
+            Self::Funds => "Фонды",
+            Self::Crypto => "Криптовалюта",
+            Self::RealEstate => "Недвижимость",
+            Self::CommercialRealEstate => "Коммерческая недвижимость",
+            Self::MovableProperty => "Движимое имущество",
+        }
+    }
+    
+    fn all() -> &'static [Self] {
+        &[
+            Self::Cash, Self::BankDeposit, Self::Gold, Self::PreciousMetals,
+            Self::Stocks, Self::DividendStocks, Self::Bonds, Self::Funds,
+            Self::Crypto, Self::RealEstate, Self::CommercialRealEstate, Self::MovableProperty
+        ]
+    }
+}
+
+// Структура одного добавленного актива
+#[derive(Clone)]
+pub struct PortfolioAsset {
+    pub name: String,
+    pub value: f64,
+}
+
+//=======================================================================================
 // MyApp
 //=======================================================================================
 struct MyApp {
@@ -262,6 +317,12 @@ struct MyApp {
     error_message: Option<String>, // Поле для предупреждений об ошибках парсинга
 
     calc_time_duration: f64, // Время расчета таблицы
+
+    // Поля для моделирования инвест портфеля
+    portfolio_assets: Vec<PortfolioAsset>, // Массив добавленных активов
+    selected_asset_class: AssetClass,      // Выбранный элемент в комбобоксе классических активов
+    asset_amount_text: String,             // Текст стоимости из эдита
+    custom_asset_name: String,             // Текст имени кастомного актива из эдита
 }
 
 impl MyApp {
@@ -315,6 +376,12 @@ impl MyApp {
             error_message: None, // Сообщение об ошибке парсинга
 
             calc_time_duration: 0.0, // Время расчета таблицы
+        
+            // Поля для моделирования инвест портфеля
+            portfolio_assets: Vec::new(),
+            selected_asset_class: AssetClass::Cash,
+            asset_amount_text: String::new(),
+            custom_asset_name: String::new(),
         }
     }
 
@@ -541,6 +608,20 @@ impl MyApp {
         }
     }
 
+    // Запуск инвест рассчета - выносим всю цепочку действий в отдельную функцию для вызова из 2х разных мест
+    fn run_invest_calculation(&mut self) {
+        if self.text_edits_parsing() {
+            // НАЧАЛО ЗАМЕРА
+            let start_time = std::time::Instant::now();
+            
+            self.invest_calc();
+
+            // КОНЕЦ ЗАМЕРА
+            let duration = start_time.elapsed();
+            self.calc_time_duration = duration.as_secs_f64() * 1000.0;
+        }
+    }
+
     // Добавляем в UI главные кнопки с иконками (toolbar)
     fn draw_icon_buttons(&mut self, ui: &mut egui::Ui) {
         let button_icon_size: f32 = 35.0;
@@ -576,16 +657,7 @@ impl MyApp {
         ui.horizontal(|ui| {
             // Инвест рассчет
             if ui.add_sized(egui::vec2(130.0, 50.0), image_btn_calc).clicked() {
-                if self.text_edits_parsing() {
-                    // НАЧАЛО ЗАМЕРА: Фиксируем текущую точку времени
-                    let start_time = std::time::Instant::now();
-                    
-                    self.invest_calc();
-
-                    // КОНЕЦ ЗАМЕРА: Считаем прошедшее время и переводим в миллисекунды (f64)
-                    let duration = start_time.elapsed();
-                    self.calc_time_duration = duration.as_secs_f64() * 1000.0;
-                }
+                self.run_invest_calculation();
             }
             // Загрузить демо данные
             if ui.add_sized(egui::vec2(150.0, 50.0), image_btn_demo).clicked() {
@@ -608,6 +680,21 @@ impl MyApp {
                 self.reinvest_period = ReinvestPeriod::Months3;
                 self.currency = Currency::Rub;
                 self.deposit_frequency = DepositFrequency::Monthly;
+
+                // Заполняем текущий инвест портфель - активы
+                self.portfolio_assets = vec![
+                    PortfolioAsset { name: "Наличные".to_string(), value: 3000000.0 },
+                    PortfolioAsset { name: "Банковский вклад".to_string(), value: 560000.0 },
+                    PortfolioAsset { name: "Золото".to_string(), value: 5000000.0 },
+                    PortfolioAsset { name: "Дивидиндные акции".to_string(), value: 7500000.0 },
+                    PortfolioAsset { name: "Облигации".to_string(), value: 4400000.0 },
+                    PortfolioAsset { name: "Криптовалюта".to_string(), value: 3000000.0 },
+                    PortfolioAsset { name: "Недвижимость".to_string(), value: 25000000.0 },
+                    PortfolioAsset { name: "Движимое имущество".to_string(), value: 5700000.0 },
+                ];
+
+                // Делаем инвест рассчет, заполнится таблица и нарисуется график
+                self.run_invest_calculation();
             }
             if ui.add_sized(egui::vec2(120.0, 50.0), image_btn_export).clicked() {
                 // Клик по иконке
@@ -981,6 +1068,31 @@ impl MyApp {
                                 plot_ui.points(marker_point);
                             }
                         }
+
+                        // 4. Фича: оранжевая линия текущего портфеля
+                        let total_portfolio_value: f64 = self.portfolio_assets.iter().map(|a| a.value).sum();
+
+                        // Проверяем условия отображения: портфель не пуст, и его стоимость лежит между 
+                        // первым балансом (стартовым капиталом) и финальным результатом
+                        if total_portfolio_value > 0.0 && !self.calc_result_rows.is_empty() {
+                            let first_year_balance = self.calc_result_rows.first().unwrap().end_balance;
+                            let last_year_balance = self.calc_result_rows.last().unwrap().end_balance;
+
+                            // Нам нужно определить, попадает ли портфель в диапазон прогноза
+                            // Берем минимальное и максимальное значение из двух крайних точек (на случай падения графика)
+                            let min_bound = first_year_balance.min(last_year_balance);
+                            let max_bound = first_year_balance.max(last_year_balance);
+
+                            if total_portfolio_value >= min_bound && total_portfolio_value <= max_bound {
+                                // Горизонтальная линия через весь график на уровне Y = общая стоимость
+                                let orange_line = egui_plot::HLine::new("Текущий портфель", total_portfolio_value)
+                                    .color(egui::Color32::from_rgb(180, 180, 0)) // Темно желтый
+                                    .width(1.5_f32)
+                                    .style(egui_plot::LineStyle::Dashed { length: 5.0 }); // Пунктир
+
+                                plot_ui.hline(orange_line);
+                            }
+                        }
                     });
             });
         } else {
@@ -988,10 +1100,136 @@ impl MyApp {
         }
     }
 
-    // Рисуем UI для вашего текущего инвест портфеля
-    fn draw_current_portfolio(&mut self, ui: &mut egui::Ui) {
-        ui.heading("💰 Ваш текущий инвестиционный портфель");
+    // Моделирование текущего инвестиционного портфеля
+    fn draw_portfolio_manager(&mut self, ui: &mut egui::Ui) {
+        ui.heading("💼 Ваш текущий инвестиционный портфель");
         ui.add_space(10.0);
+
+        // Считаем общую стоимость портфеля
+        let total_portfolio_value: f64 = self.portfolio_assets.iter().map(|a| a.value).sum();
+
+        // Делим пространство под графиком (650px) на две половины
+        ui.columns(2, |columns| {
+            let [left_col, right_col] = columns else { panic!("In the draw_portfolio_manager function, 2 columns are expected in the UI") };
+
+            // ================= ЛЕВАЯ ПОЛОВИНА: Форма добавления =================
+            left_col.vertical(|ui| {
+                let edit_width = egui::vec2(310.0, 24.0);
+                let combo_box_width: f32 = 310.0;
+
+                // 1. Комбобокс классов активов
+                ui.label(egui::RichText::new("Выберите категорию актива: *"));
+                ui.spacing_mut().button_padding.y = 4.0;
+                egui::ComboBox::from_id_salt("portfolio_asset_class_combo")
+                    .selected_text(self.selected_asset_class.to_string())
+                    .width(combo_box_width)
+                    .show_ui(ui, |ui| {
+                        for class in AssetClass::all() {
+                            ui.selectable_value(&mut self.selected_asset_class, *class, class.to_string());
+                        }
+                    });
+                ui.add_space(8.0);
+
+                // 2. Эдит для стоимости
+                ui.label(egui::RichText::new("Стоимость актива: *"));
+                //ui.add(egui::TextEdit::singleline(&mut self.asset_amount_text).desired_width(edit_width));
+                ui.add_sized(edit_width, egui::TextEdit::singleline(&mut self.asset_amount_text).hint_text("25000"));
+                ui.add_space(8.0);
+
+                // 3. Эдит для специфического имени
+                ui.label(egui::RichText::new("Свой актив (необязательно):"));
+                //ui.add(egui::TextEdit::singleline(&mut self.custom_asset_name).desired_width(edit_width));
+                ui.add_sized(edit_width, egui::TextEdit::singleline(&mut self.custom_asset_name).hint_text("Серебро"));
+                ui.add_space(15.0);
+
+                // Кнопки управления и лейбл суммы
+                ui.horizontal(|ui| {
+                    // Кнопка Добавить актив
+                    if ui.add_sized(egui::vec2(140.0, 24.0), egui::Button::new("➕ Добавить актив")).clicked() {
+                        // Валидация стоимости
+                        let parsed_amount = self.asset_amount_text.trim().replace(',', ".");
+                        match parsed_amount.parse::<f64>() {
+                            Ok(amount) if amount >= 0.0 => {
+                                let max_portfolio_assets: usize = 10;
+                                if self.portfolio_assets.len() >= max_portfolio_assets {
+                                    self.error_message = Some(format!("Максимальное количество активов ограничено {} строками!", max_portfolio_assets));
+                                } else {
+                                    // Определяем имя: если специфическое пустое, берем из комбобокса
+                                    let asset_name = if self.custom_asset_name.trim().is_empty() {
+                                        self.selected_asset_class.to_string().to_string()
+                                    } else {
+                                        self.custom_asset_name.trim().to_string()
+                                    };
+
+                                    self.portfolio_assets.push(PortfolioAsset {
+                                        name: asset_name,
+                                        value: amount,
+                                    });
+
+                                    // Очищаем поля ввода
+                                    self.asset_amount_text.clear();
+                                    self.custom_asset_name.clear();
+                                }
+                            }
+                            _ => {
+                                self.error_message = Some("Укажите корректную стоимость актива (положительное число)!".to_string());
+                            }
+                        }
+                    }
+
+                    // Кнопка Очистить
+                    if ui.add_sized(egui::vec2(160.0, 24.0), egui::Button::new("🗑 Очистить портфель")).clicked() {
+                        self.portfolio_assets.clear();
+                    }
+                });
+
+                ui.add_space(12.0);
+                // Оранжевый лейбл с общей суммой портфеля
+                let yellow_color = egui::Color32::from_rgb(180, 180, 0);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "Размер вашего портфеля: {} {}", 
+                        format_thousands(total_portfolio_value as i64), 
+                        self.currency_sign
+                    ))
+                    .strong()
+                    .size(14.0)
+                    .color(yellow_color)
+                );
+            });
+
+            // ================= ПРАВАЯ ПОЛОВИНА: Список добавленных активов =================
+            right_col.vertical(|ui| {
+                if self.portfolio_assets.is_empty() {
+                    ui.weak("Портфель пуст. Добавьте активы слева.");
+                } else {
+                    let mut asset_to_remove = None;
+
+                    // Циклом выводим строки элементов (максимум 7)
+                    for (idx, asset) in self.portfolio_assets.iter().enumerate() {
+                        ui.horizontal(|ui| {
+                            // 1. Имя актива (Readonly)
+                            let mut name_tmp = asset.name.clone();
+                            ui.add(egui::TextEdit::singleline(&mut name_tmp).interactive(false).desired_width(150.0));
+
+                            // 2. Стоимость актива (Readonly с округлением)
+                            let mut val_str = format!("{} {}", format_thousands(asset.value as i64), self.currency_sign);
+                            ui.add(egui::TextEdit::singleline(&mut val_str).interactive(false).desired_width(110.0));
+
+                            // 3. Кнопка-крестик для удаления
+                            if ui.button(egui::RichText::new("❌").color(egui::Color32::RED)).clicked() {
+                                asset_to_remove = Some(idx);
+                            }
+                        });
+                    }
+
+                    // Если была нажата кнопка удаления — вырезаем из вектора
+                    if let Some(idx) = asset_to_remove {
+                        self.portfolio_assets.remove(idx);
+                    }
+                }
+            });
+        });
     }
 
 } // impl MyApp
@@ -1007,11 +1245,11 @@ impl eframe::App for MyApp {
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 // Выводим текст с форматированием до 4 знаков после запятой
-                ui.label(format!("Расчет занял время: {:.4} мс", self.calc_time_duration));
+                ui.label(format!("⏱ Расчет занял время: {:.4} мс", self.calc_time_duration));
                 ui.separator();
-                ui.label("Пополнения делаются в первый месяц интервала пополнения");
+                ui.label("ℹ Пополнения делаются в первый месяц интервала пополнения");
                 ui.separator();
-                ui.label("При закрытии приложения исходные данные и инвест портфель сохраняются");
+                ui.label("💾 При закрытии приложения исходные данные и инвест портфель сохраняются");
 
                 // Добавим разделитель и выведем дополнительную информацию
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1060,7 +1298,7 @@ impl eframe::App for MyApp {
                     ui.add_space(15.0);
                     
                     // Рисуем UI для вашего текущего инвест портфеля
-                    self.draw_current_portfolio(ui);
+                    self.draw_portfolio_manager(ui);
                 });
             });
 
