@@ -1,11 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+// Подключаем модуль встпомогательных функций, структур и энумов
 mod utility;
+use utility::{ CalcHistoryRow, ReinvestPeriod, Currency, DepositFrequency, AssetClass, PortfolioAsset }; // Подлкючаем enums и structs
+use utility::{ format_thousands, get_russian_years_suffix}; // Подлкючаем функции
 
-// Подлкючаем enums и structs
-use utility::{ CalcHistoryRow, ReinvestPeriod, Currency, DepositFrequency, AssetClass, PortfolioAsset };
-// Подлкючаем функции
-use utility::{ format_thousands, get_russian_years_suffix};
+// Подключаем модуль фунцкии инвестиционного расчета
+mod calc;
+use calc::{CalcInputParams, invest_calc};
 
 use eframe::egui;
 use egui_plot::{Line, Plot, PlotPoints};
@@ -119,7 +121,7 @@ struct MyApp {
     investor_age_text: String,      // Возраст инвестора на первый год инвестиций
     calendar_year_text: String,     // Календарный год на первый год инвестиций
 
-    // Вектор для сохранения результатов инвест рассчетов
+    // Вектор для сохранения результатов инвест расчетов
     calc_result_rows: Vec<CalcHistoryRow>,
 
     // Переменные для выпадающих списков
@@ -129,18 +131,8 @@ struct MyApp {
 
     currency_sign: char, // Символ валюты для таблицы
 
-    // Сохраняем результаты парсинга сюда, далее пойдет на вход для рассчета инвестиций по годам
-    invest_duration_num: usize, // Длительность инвестиций, годы (целое число)
-    interest_num: f64,          // Процентная ставка инвестиций, проценты (дробное число)
-    start_deposit_num: f64,     // Начальный капитал (дробное число)
-    deposit_num: f64,           // Размер пополнения (дробное число)
-    deposit_years_num: usize,   // Сколько лет делаем пополнения (целое число)
-    withdraw_num: f64,          // Размер ежемесячного изъятия (дробное число)
-    withdraw_start_num: usize,  // Инвест год, начала изъятий (целое число)
-    inflation_num: f64,         // Годовой размер инфляции, проценты (дробное число)
-    salary_grow_num: f64,       // Годовой рост пополнения, проценты (дробное число)
-    investor_age_num: usize,    // Возраст инвестора на первый год инвестиций (целое число)
-    calendar_year_num: usize,   // Календарный год на первый год инвестиций (целое число)
+    // Сохраняем результаты парсинга сюда, далее пойдет на вход для расчета инвестиций по годам
+    calc_in_params: CalcInputParams,
 
     error_message: Option<String>, // Поле для предупреждений об ошибках парсинга
 
@@ -189,17 +181,7 @@ impl MyApp {
 
             currency_sign: '₽', // Символ валюты для таблицы
 
-            invest_duration_num: 0,
-            interest_num: 0.0,
-            start_deposit_num: 0.0,
-            deposit_num: 0.0,
-            deposit_years_num: 0,
-            withdraw_num: 0.0,
-            withdraw_start_num: 0,
-            inflation_num: 0.0,
-            salary_grow_num: 0.0,
-            investor_age_num: 0,
-            calendar_year_num: 0,
+            calc_in_params: CalcInputParams::new(),
 
             error_message: None, // Сообщение об ошибке парсинга
 
@@ -213,125 +195,7 @@ impl MyApp {
         }
     }
 
-    //=======================================================================================
-    // Инвестиционный рассчет по годам
-    //=======================================================================================
-    fn invest_calc(&mut self) {
-        
-        // Очищаем результаты прошлых расчетов
-        self.calc_result_rows.clear();
-        
-        // Символ валюты
-        self.currency_sign = self.currency.to_string().chars().next().unwrap_or('?');
-
-        // Извлекаем шаг реинвестирования (в месяцах) из энума
-        let reinvest_step = match self.reinvest_period {
-            ReinvestPeriod::Months3 => 3,
-            ReinvestPeriod::Months6 => 6,
-            ReinvestPeriod::Months12 => 12,
-        };
-
-        // Переводим годовую ставку в месячную (сложный процент)
-        // interest_num задан в процентах (например, 12.0 -> 0.12)
-        let annual_rate = self.interest_num / 100.0;
-        let monthly_rate = (1.0 + annual_rate).powf(1.0 / 12.0) - 1.0;
-
-        // Инициализируем переменные состояния для расчета
-        let mut current_balance = self.start_deposit_num;
-        let mut current_monthly_deposit = self.deposit_num;
-        
-        // Переменная для накопления процентов между периодами реинвестирования
-        let mut accumulated_interest = 0.0;
-
-        // Внешний цикл: Идем по инвестиционным годам (от 1 до invest_duration_num)
-        for year_idx in 1..=self.invest_duration_num {
-            // Текущие параметры инвестора и календаря для этой строки (этого года)
-            let current_investor_age = self.investor_age_num + (year_idx - 1);
-            let current_calendar_year = self.calendar_year_num + (year_idx - 1);
-
-            // Счетчики для накопления годовой статистики по строке
-            let mut yearly_deposits = 0.0;
-            let mut yearly_withdraws = 0.0;
-            let mut yearly_interest_earned = 0.0;
-
-            // Внутренний цикл: Идем по месяцам внутри текущего года (1..=12)
-            for month in 1..=12 {
-                
-                // 1. ПОПОЛНЕНИЕ КАПИТАЛА (Проверяем, укладываемся ли в доступные для пополнения годы)
-                if year_idx <= self.deposit_years_num {
-                    let is_deposit_month = match self.deposit_frequency {
-                        DepositFrequency::Monthly => true,
-                        DepositFrequency::EveryTwoMonths => month % 2 == 1, // Каждый нечетный месяц (1, 3, 5...)
-                        DepositFrequency::Quarterly => month % 3 == 1,      // Раз в квартал (1, 4, 7, 10)
-                        DepositFrequency::SemiAnnually => month == 1 || month == 7, // Раз в полгода
-                    };
-
-                    if is_deposit_month {
-                        current_balance += current_monthly_deposit;
-                        yearly_deposits += current_monthly_deposit;
-                    }
-                }
-
-                // 2. ИЗЪЯТИЕ СРЕДСТВ (Ежемесячно, если наступил или прошел год начала изъятий) и если изъятие было заданно
-                if self.withdraw_start_num > 0 && self.withdraw_num > 0.0 && year_idx >= self.withdraw_start_num {
-                    // Изъятие происходит только если на балансе есть деньги
-                    let actual_withdraw = if current_balance >= self.withdraw_num {
-                        self.withdraw_num
-                    } else {
-                        current_balance // Забираем остаток, если на балансе меньше нужной суммы
-                    };
-
-                    current_balance -= actual_withdraw;
-                    yearly_withdraws += actual_withdraw;
-                }
-
-                // 3. РАСЧЕТ И НАКОПЛЕНИЕ НАЧИСЛЕННЫХ ПРОЦЕНТОВ ЗА МЕСЯЦ
-                let monthly_interest = current_balance * monthly_rate;
-                accumulated_interest += monthly_interest;
-                yearly_interest_earned += monthly_interest;
-
-                // 4. КАПИТАЛИЗАЦИЯ (РЕИНВЕСТИРОВАНИЕ) ПРОЦЕНТОВ
-                // Проценты падают на баланс только в определенные месяцы (например, каждые 3, 6 или 12 месяцев)
-                if month % reinvest_step == 0 {
-                    current_balance += accumulated_interest;
-                    accumulated_interest = 0.0; // Сбрасываем накопитель для следующего периода
-                }
-            }
-
-            // Если в конце года остались нереинвестированные проценты (для безопасности)
-            if accumulated_interest > 0.0 {
-                current_balance += accumulated_interest;
-                accumulated_interest = 0.0;
-            }
-
-            // Сохраняем результаты за весь прошедший год в структуру строки таблицы
-            self.calc_result_rows.push(CalcHistoryRow {
-                invest_year: year_idx,
-                investor_age: current_investor_age,
-                calendar_year: current_calendar_year,
-                deposits: yearly_deposits,
-                withdraw: yearly_withdraws,
-                interest: yearly_interest_earned,
-                end_balance: current_balance,
-            });
-
-            // 5. ИНДЕКСАЦИЯ НА ИНФЛЯЦИЮ И РОСТ ПОПОЛНЕНИЙ (Применяется в конце каждого года на будущий год)
-            // Рост размера пополнений (например, рост зарплаты), если он был задан
-            if self.salary_grow_num > 0.0 {
-                let salary_grow_factor = 1.0 + (self.salary_grow_num / 100.0);
-                current_monthly_deposit *= salary_grow_factor;
-            }
-
-            // 6. Корректировка изъятий на размер инфляции (чтобы сохранять покупательскую способность)
-            // Инфляция начинает работу только с первого года изъятия, если эти 3 необходимх параметра были заданны
-            if self.withdraw_start_num > 0 && self.withdraw_num > 0.0 && self.inflation_num > 0.0 && year_idx >= self.withdraw_start_num {
-                let inflation_factor = 1.0 + (self.inflation_num / 100.0);
-                self.withdraw_num *= inflation_factor;
-            }
-        }
-    }
-
-    // Парсинг текстовых полей в числовые входные данные для рассчета
+    // Парсинг текстовых полей в числовые входные данные для расчета
     fn text_edits_parsing(&mut self) -> bool {
 
         // 1. Автоподстановка "0" для пустых или состоящих из пробелов необязательных полей
@@ -362,26 +226,26 @@ impl MyApp {
 
         // Запуск последовательной валидации всех полей
         let result = (|| -> Result<(), String> {
-            self.invest_duration_num = parse_usize(&self.invest_duration_text, "Длительность инвестиций", 1, 100)?;
-            self.interest_num = parse_f64(&self.interest_text, "Процентная ставка", 0.0, 100.0)?;
-            self.start_deposit_num = parse_f64(&self.start_deposit_text, "Начальный капитал", 0.0, f64::MAX)?;
-            self.deposit_num = parse_f64(&self.deposit_text, "Размер пополнения", 0.0, f64::MAX)?;
-            self.deposit_years_num = parse_usize(&self.deposit_years_text, "Сколько лет делаем пополнения", 0, self.invest_duration_num)?;
-            self.withdraw_num = parse_f64(&self.withdraw_text, "Размер ежемесячного изъятия", 0.0, f64::MAX)?;
-            self.withdraw_start_num = parse_usize(&self.withdraw_start_text, "Инвест год начала изъятий", 0, self.invest_duration_num + 1)?;
-            self.inflation_num = parse_f64(&self.inflation_text, "Размер инфляции", 0.0, 100.0)?;
-            self.salary_grow_num = parse_f64(&self.salary_grow_text, "Рост пополнения", 0.0, 100.0)?;
-            self.investor_age_num = parse_usize(&self.investor_age_text, "Возраст инвестора", 0, 120)?;
-            self.calendar_year_num = parse_usize(&self.calendar_year_text, "Календарный год", 1800, 2200)?;
+            self.calc_in_params.invest_duration_num = parse_usize(&self.invest_duration_text, "Длительность инвестиций", 1, 100)?;
+            self.calc_in_params.interest_num = parse_f64(&self.interest_text, "Процентная ставка", 0.0, 100.0)?;
+            self.calc_in_params.start_deposit_num = parse_f64(&self.start_deposit_text, "Начальный капитал", 0.0, f64::MAX)?;
+            self.calc_in_params.deposit_num = parse_f64(&self.deposit_text, "Размер пополнения", 0.0, f64::MAX)?;
+            self.calc_in_params.deposit_years_num = parse_usize(&self.deposit_years_text, "Сколько лет делаем пополнения", 0, self.calc_in_params.invest_duration_num)?;
+            self.calc_in_params.withdraw_num = parse_f64(&self.withdraw_text, "Размер ежемесячного изъятия", 0.0, f64::MAX)?;
+            self.calc_in_params.withdraw_start_num = parse_usize(&self.withdraw_start_text, "Инвест год начала изъятий", 0, self.calc_in_params.invest_duration_num + 1)?;
+            self.calc_in_params.inflation_num = parse_f64(&self.inflation_text, "Размер инфляции", 0.0, 100.0)?;
+            self.calc_in_params.salary_grow_num = parse_f64(&self.salary_grow_text, "Рост пополнения", 0.0, 100.0)?;
+            self.calc_in_params.investor_age_num = parse_usize(&self.investor_age_text, "Возраст инвестора", 0, 120)?;
+            self.calc_in_params.calendar_year_num = parse_usize(&self.calendar_year_text, "Календарный год", 1800, 2200)?;
             
             // Дополнительные кросс-валидации
-            if self.deposit_years_num > self.invest_duration_num {
+            if self.calc_in_params.deposit_years_num > self.calc_in_params.invest_duration_num {
                 return Err("Ошибка. Срок пополнений не может быть больше всей длительности инвестиций".to_string());
             }
-            if self.withdraw_num > 0.0 && self.withdraw_start_num == 0 {
+            if self.calc_in_params.withdraw_num > 0.0 && self.calc_in_params.withdraw_start_num == 0 {
                 return Err("Ошибка. Вы задали значение для изъятий, но не задали корректный год начала для них".to_string());
             }
-            if self.inflation_num > 0.0 && self.withdraw_num == 0.0 && self.withdraw_start_num == 0 {
+            if self.calc_in_params.inflation_num > 0.0 && self.calc_in_params.withdraw_num == 0.0 && self.calc_in_params.withdraw_start_num == 0 {
                 return Err("Ошибка. Вы задали инфляцию для изъятий (рассходов), но не задали размер изъятия и корректный год начала списаний".to_string());
             }
 
@@ -436,13 +300,13 @@ impl MyApp {
         }
     }
 
-    // Запуск инвест рассчета - выносим всю цепочку действий в отдельную функцию для вызова из 2х разных мест
+    // Запуск инвест расчета - выносим всю цепочку действий в отдельную функцию для вызова из 2х разных мест
     fn run_invest_calculation(&mut self) {
         if self.text_edits_parsing() {
             // НАЧАЛО ЗАМЕРА
             let start_time = std::time::Instant::now();
             
-            self.invest_calc();
+            invest_calc(&self.calc_in_params, &mut self.calc_result_rows, &self.reinvest_period, &self.deposit_frequency);
 
             // КОНЕЦ ЗАМЕРА
             let duration = start_time.elapsed();
@@ -483,7 +347,7 @@ impl MyApp {
         let image_btn_lang = egui::Button::image_and_text(icon_sized_lang, "Language");
         let image_btn_about = egui::Button::image_and_text(icon_sized_about, "О программе");
         ui.horizontal(|ui| {
-            // Инвест рассчет
+            // Инвест расчет
             if ui.add_sized(egui::vec2(130.0, 50.0), image_btn_calc).clicked() {
                 self.run_invest_calculation();
             }
@@ -521,7 +385,7 @@ impl MyApp {
                     PortfolioAsset { name: "Движимое имущество".to_string(), value: 5700000.0 },
                 ];
 
-                // Делаем инвест рассчет, заполнится таблица и нарисуется график
+                // Делаем инвест расчет, заполнится таблица и нарисуется график
                 self.run_invest_calculation();
             }
             if ui.add_sized(egui::vec2(120.0, 50.0), image_btn_export).clicked() {
@@ -545,7 +409,7 @@ impl MyApp {
         let combo_box_width: f32 = 310.0;
         let edit_space: f32 = 7.0;
 
-        ui.heading("📈 Введите исходные данные для инвестиционный расчета");
+        ui.heading("📈 Введите исходные данные для инвестиционного расчета");
         ui.add_space(10.0);
 
         // ======= СТРОКА 1 =======
@@ -722,7 +586,7 @@ impl MyApp {
         });
     }
 
-    // Рисуем в UI таблицу с результатами инвест рассчета
+    // Рисуем в UI таблицу с результатами инвест расчета
     fn draw_results_table(&mut self, ui: &mut egui::Ui) {
         // Инициализируем построитель таблиц
         let header_height = 25.0;        // Высота заголовка        
@@ -838,7 +702,7 @@ impl MyApp {
                     .width(3.0_f32);
 
                 // 2. Точки для ВТОРОЙ линии (Накопление пополнений с учетом стартового капитала)
-                let mut cumulative_deposits = self.start_deposit_num; // Начинаем со стартового капитала
+                let mut cumulative_deposits = self.calc_in_params.start_deposit_num; // Начинаем со стартового капитала
                 let points_deposits: PlotPoints = self.calc_result_rows
                     .iter()
                     .map(|row| {
@@ -870,10 +734,10 @@ impl MyApp {
                         plot_ui.line(line_capital);
                         plot_ui.line(line_deposits);
 
-                        if self.withdraw_start_num > 0 {
+                        if self.calc_in_params.withdraw_start_num > 0 {
                             // 2. Добавляем кастомную вертикальную линию (например, на 10-й инвест-год)
                             // Задаем координату X. Например, берем год начала изъятий
-                            let target_x = self.withdraw_start_num as f64; 
+                            let target_x = self.calc_in_params.withdraw_start_num as f64; 
                             
                             let vertical_line = egui_plot::VLine::new("Начало изъятий", target_x)
                                 .color(egui::Color32::from_rgb(240, 70, 70)) // Мягкий красный цвет
@@ -884,7 +748,7 @@ impl MyApp {
 
                             // 3. Рисуем цветную точку-маркер на пересечении
                             // Находим строку данных для нужного года, чтобы узнать точный баланс (координату Y)
-                            if let Some(row) = self.calc_result_rows.iter().find(|r| r.invest_year == self.withdraw_start_num) {
+                            if let Some(row) = self.calc_result_rows.iter().find(|r| r.invest_year == self.calc_in_params.withdraw_start_num) {
                                 let target_y = row.end_balance;
 
                                 // Создаем точку
@@ -927,138 +791,6 @@ impl MyApp {
             ui.label("Нажмите кнопку 'Рассчитать', чтобы увидеть график прогноза.");
         }
     }
-
-    // Моделирование текущего инвестиционного портфеля
-    /*fn draw_portfolio_manager(&mut self, ui: &mut egui::Ui) {
-        ui.heading("💼 Ваш текущий инвестиционный портфель");
-        ui.add_space(10.0);
-
-        // Считаем общую стоимость портфеля
-        let total_portfolio_value: f64 = self.portfolio_assets.iter().map(|a| a.value).sum();
-
-        // Делим пространство под графиком (650px) на две половины
-        ui.columns(2, |columns| {
-            let [left_col, right_col] = columns else { panic!("In the draw_portfolio_manager function, 2 columns are expected in the UI") };
-
-            // ================= ЛЕВАЯ ПОЛОВИНА: Форма добавления =================
-            left_col.vertical(|ui| {
-                let edit_width = egui::vec2(310.0, 24.0);
-                let combo_box_width: f32 = 310.0;
-
-                // 1. Комбобокс классов активов
-                ui.label(egui::RichText::new("Выберите категорию актива: *"));
-                ui.spacing_mut().button_padding.y = 4.0;
-                egui::ComboBox::from_id_salt("portfolio_asset_class_combo")
-                    .selected_text(self.selected_asset_class.to_string())
-                    .width(combo_box_width)
-                    .show_ui(ui, |ui| {
-                        for class in AssetClass::all() {
-                            ui.selectable_value(&mut self.selected_asset_class, *class, class.to_string());
-                        }
-                    });
-                ui.add_space(8.0);
-
-                // 2. Эдит для стоимости
-                ui.label(egui::RichText::new("Стоимость актива: *"));
-                //ui.add(egui::TextEdit::singleline(&mut self.asset_amount_text).desired_width(edit_width));
-                ui.add_sized(edit_width, egui::TextEdit::singleline(&mut self.asset_amount_text).hint_text("25000"));
-                ui.add_space(8.0);
-
-                // 3. Эдит для специфического имени
-                ui.label(egui::RichText::new("Свой актив (необязательно):"));
-                //ui.add(egui::TextEdit::singleline(&mut self.custom_asset_name).desired_width(edit_width));
-                ui.add_sized(edit_width, egui::TextEdit::singleline(&mut self.custom_asset_name).hint_text("Серебро"));
-                ui.add_space(15.0);
-
-                // Кнопки управления и лейбл суммы
-                ui.horizontal(|ui| {
-                    // Кнопка Добавить актив
-                    if ui.add_sized(egui::vec2(140.0, 24.0), egui::Button::new("➕ Добавить актив")).clicked() {
-                        // Валидация стоимости
-                        let parsed_amount = self.asset_amount_text.trim().replace(',', ".");
-                        match parsed_amount.parse::<f64>() {
-                            Ok(amount) if amount >= 0.0 => {
-                                let max_portfolio_assets: usize = 10;
-                                if self.portfolio_assets.len() >= max_portfolio_assets {
-                                    self.error_message = Some(format!("Максимальное количество активов ограничено {} строками!", max_portfolio_assets));
-                                } else {
-                                    // Определяем имя: если специфическое пустое, берем из комбобокса
-                                    let asset_name = if self.custom_asset_name.trim().is_empty() {
-                                        self.selected_asset_class.to_string().to_string()
-                                    } else {
-                                        self.custom_asset_name.trim().to_string()
-                                    };
-
-                                    self.portfolio_assets.push(PortfolioAsset {
-                                        name: asset_name,
-                                        value: amount,
-                                    });
-
-                                    // Очищаем поля ввода
-                                    self.asset_amount_text.clear();
-                                    self.custom_asset_name.clear();
-                                }
-                            }
-                            _ => {
-                                self.error_message = Some("Укажите корректную стоимость актива (положительное число)!".to_string());
-                            }
-                        }
-                    }
-
-                    // Кнопка Очистить
-                    if ui.add_sized(egui::vec2(160.0, 24.0), egui::Button::new("🗑 Очистить портфель")).clicked() {
-                        self.portfolio_assets.clear();
-                    }
-                });
-
-                ui.add_space(12.0);
-                // Оранжевый лейбл с общей суммой портфеля
-                let yellow_color = egui::Color32::from_rgb(180, 180, 0);
-                ui.label(
-                    egui::RichText::new(format!(
-                        "Размер вашего портфеля: {} {}", 
-                        format_thousands(total_portfolio_value as i64), 
-                        self.currency_sign
-                    ))
-                    .strong()
-                    .size(14.0)
-                    .color(yellow_color)
-                );
-            });
-
-            // ================= ПРАВАЯ ПОЛОВИНА: Список добавленных активов =================
-            right_col.vertical(|ui| {
-                if self.portfolio_assets.is_empty() {
-                    ui.weak("Портфель пуст. Добавьте активы слева.");
-                } else {
-                    let mut asset_to_remove = None;
-
-                    // Циклом выводим строки элементов (максимум 7)
-                    for (idx, asset) in self.portfolio_assets.iter().enumerate() {
-                        ui.horizontal(|ui| {
-                            // 1. Имя актива (Readonly)
-                            let mut name_tmp = asset.name.clone();
-                            ui.add(egui::TextEdit::singleline(&mut name_tmp).interactive(false).desired_width(150.0));
-
-                            // 2. Стоимость актива (Readonly с округлением)
-                            let mut val_str = format!("{} {}", format_thousands(asset.value as i64), self.currency_sign);
-                            ui.add(egui::TextEdit::singleline(&mut val_str).interactive(false).desired_width(110.0));
-
-                            // 3. Кнопка-крестик для удаления
-                            if ui.button(egui::RichText::new("❌").color(egui::Color32::RED)).clicked() {
-                                asset_to_remove = Some(idx);
-                            }
-                        });
-                    }
-
-                    // Если была нажата кнопка удаления — вырезаем из вектора
-                    if let Some(idx) = asset_to_remove {
-                        self.portfolio_assets.remove(idx);
-                    }
-                }
-            });
-        });
-    }*/
 
     // Моделирование текущего инвестиционного портфеля
     fn draw_portfolio_manager(&mut self, ui: &mut egui::Ui) {
