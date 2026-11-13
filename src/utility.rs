@@ -26,7 +26,7 @@ pub enum ReinvestPeriod {
 }
 
 impl ReinvestPeriod {
-    pub fn to_string(&self) -> &'static str {
+    pub fn to_string(self) -> &'static str {
         match self {
             Self::Months3 => "3 месяца",
             Self::Months6 => "6 месяцев",
@@ -52,7 +52,7 @@ pub enum Currency {
 }
 
 impl Currency {
-    pub fn to_string(&self) -> &'static str {
+    pub fn to_string(self) -> &'static str {
         match self {
             Self::Usd => "$ (Доллар США)",
             Self::Eur => "€ (Евро)",
@@ -79,7 +79,7 @@ pub enum DepositFrequency {
 }
 
 impl DepositFrequency {
-    pub fn to_string(&self) -> &'static str {
+    pub fn to_string(self) -> &'static str {
         match self {
             Self::Monthly => "Ежемесячно",
             Self::EveryTwoMonths => "Через месяц",
@@ -102,7 +102,7 @@ pub fn format_thousands(mut n: i64) -> String {
     
     for (i, &byte) in bytes.iter().enumerate() {
         result.push(byte as char);
-        if (len - i - 1) % 3 == 0 && i != len - 1 {
+        if (len - i - 1).is_multiple_of(3) && i != len - 1 {
             result.push(' ');
         }
     }
@@ -120,8 +120,8 @@ pub fn get_russian_years_suffix(years: usize) -> &'static str {
     } else {
         match remainder_10 {
             1 => "год",
-            2 | 3 | 4 => "года",
-            _ => "лет", // 0, 5, 6, 7, 8, 9
+            2..=4 => "года", // 2, 3, 4
+            _ => "лет",      // 0, 5, 6, 7, 8, 9
         }
     }
 }
@@ -148,7 +148,7 @@ pub enum AssetClass {
 }
 
 impl AssetClass {
-    pub fn to_string(&self) -> &'static str {
+    pub fn to_string(self) -> &'static str {
         match self {
             Self::Cash => "Наличные",
             Self::BankDeposit => "Банковский вклад",

@@ -293,8 +293,7 @@ impl MyApp {
 
             // Проверяем: закрыл ли пользователь окно (нажал ли на кнопку ОК)
             // Проверяем: если кнопка ОК была нажата, то внутри будет Some(true)
-            // .flatten() превратит Option<Option<bool>> в простой Option<bool>
-            if response.map(|res| res.inner).flatten().unwrap_or(false) {
+            if response.and_then(|res| res.inner).unwrap_or(false) {
                 self.error_message = None;
             }
         }
