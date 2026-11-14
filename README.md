@@ -1,30 +1,84 @@
+# FoxyCalcRust
 
-# FoxyCalcRust application description
+## Overview
 
-## General info
+An advanced compound interest investment calculator created to demonstrate GUI development in Rust using `eframe` and `egui`.
 
-An advanced investment calculator (for a compound interest) created to demonstrate how to work with GUI (eframe/egui) on Rust.
+## Main Features
 
-## Main features
+* **Flexible Calculations:** Supports up to 14 customizable input parameters.
+* **Detailed Breakdown:** Stores calculated investment forecast data in a colorful, easy-to-read table.
+* **Interactive Visualization:** Displays investment results on an interactive chart, clearly showing the impact of compound interest, deposits, and withdrawals.
+* **Portfolio Modeling:** Allows you to model your current investment portfolio across different assets and display its total value on the chart.
+* **HTML Export:** Exports all calculated data and results to a standalone HTML report.
+* **Bilingual UI:** Supports both English and Russian interface languages.
 
-+ The calculations accept up to 14 input parameters.
-+ Calculated investment forecast data will be stored in a colorfull table.
-+ Result of the investment will be visualized on the colored graph. You will clearly see the effect of compound interest, your deposits and withdraws.
-+ You can model your current investment portfolio from different assets, displaying its total amount on the investment chart.
-+ The application support exporting of all data to HTML format page.
-+ English and Russian languages are supported of the application UI.
+## Screenshots
 
-## Author and contacts
+![Main Window](screenshots/Screen1_rus.png)
 
-Sidelnikov Dmitriy, 2026
+## Building and Running
 
-Email: <nirvikalpa@yandex.ru>, Telegram: @SpringDayInTheForest, LinkedIn: <https://www.linkedin.com/in/dmitry-sidelnikov/>
+### Prerequisites
 
-## Application build
+* **OS:** Windows (tested on Windows 10/11)
+* **Rust:** Download and install from [rust-lang.org](https://rust-lang.org)
+* **Git:** Download and install from [git-scm.com](https://git-scm.com)
 
-1. Your build platform must be Windows
-2. Download and install Rust language support: <https://rust-lang.org>
-3. Download and install git: <https://git-scm.com>
-4. Make git clone for this repository (git clone <https://github.com/nirvikalpa7/FoxyCalcRust.git>).
-5. Run a build command in a folder of the project: "$ cargo build" and next "$ cargo run"
-6. You can also run unit tests: "$ cargo test"
+### Steps
+
+Clone the repository and navigate to the project directory:
+
+```bash
+git clone https://github.com/nirvikalpa7/FoxyCalcRust.git
+cd FoxyCalcRust
+```
+
+Build and run the application (use `--release` for optimal GUI performance):
+
+```bash
+cargo run --release
+```
+
+## Useful cargo commands
+
+```bash
+# Creating and configuring a project
+cargo new some-new-app
+cargo add egui-extras -F image
+cargo remove some-crate
+cargo tree
+cargo update
+
+# Build and run
+cargo check
+cargo run
+cargo build
+cargo build --release
+cargo build --verbose
+cargo clean 
+rustup target list --installed
+
+# Linters and formatting
+cargo clippy
+cargo clippy --fix
+cargo clippy -- -D warnings
+cargo fmt
+cargo fmt --check
+cargo fix
+
+# Testing and documentation
+cargo test
+cargo test --verbose
+cargo test -- --nocapture
+cargo doc
+cargo doc --open
+```
+
+## Author & Contacts
+
+© Sidelnikov Dmitriy, 2026
+
+* **Email:** [nirvikalpa@yandex.ru](mailto:nirvikalpa@yandex.ru)
+* **Telegram:** [@SpringDayInTheForest](https://t.me)
+* **LinkedIn:** [Dmitry Sidelnikov](https://www.linkedin.com/in/dmitry-sidelnikov/)

@@ -143,6 +143,8 @@ struct MyApp {
     selected_asset_class: AssetClass,      // Выбранный элемент в комбобоксе классических активов
     asset_amount_text: String,             // Текст стоимости из эдита
     custom_asset_name: String,             // Текст имени кастомного актива из эдита
+
+    reset_plot_view: bool, // Флаг для однократного сброса камеры графика
 }
 
 impl MyApp {
@@ -192,6 +194,8 @@ impl MyApp {
             selected_asset_class: AssetClass::Cash,
             asset_amount_text: String::new(),
             custom_asset_name: String::new(),
+
+            reset_plot_view: false, // Флаг для однократного сброса камеры графика
         }
     }
 
@@ -305,6 +309,7 @@ impl MyApp {
             // НАЧАЛО ЗАМЕРА
             let start_time = std::time::Instant::now();
             
+            self.reset_plot_view = true;
             invest_calc(&self.calc_in_params, &mut self.calc_result_rows, &self.reinvest_period, &self.deposit_frequency);
 
             // КОНЕЦ ЗАМЕРА
@@ -422,7 +427,7 @@ impl MyApp {
             });
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Годовая процентная ставка: *"));
+                ui.add(egui::Label::new("Годовая процентная ставка (проценты): *"));
                 ui.add_space(4.0);
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.interest_text).hint_text("11"));
             });
@@ -529,7 +534,7 @@ impl MyApp {
             });
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Годовой размер инфляции, проценты:"));
+                ui.add(egui::Label::new("Годовой размер инфляции (проценты):"));
                 ui.add_space(4.0);
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.inflation_text).hint_text("5"));
             });
@@ -542,14 +547,14 @@ impl MyApp {
             ui.spacing_mut().item_spacing.x = 25.0; // Горизонтальный отступ между блоками ввода
 
             ui.vertical(|ui| {
-                ui.add(egui::Label::new("Годовой рост пополнения, проценты:"));
+                ui.add(egui::Label::new("Годовой рост пополнения (проценты):"));
                 ui.add_space(4.0); // Отступ между текстом и полем
                 ui.add_sized(edit_size, egui::TextEdit::singleline(&mut self.salary_grow_text).hint_text("3"));
             });
 
             ui.vertical(|ui| {
                 // --- КОМБОБОКС: Период реинвестирования ---
-                ui.add(egui::Label::new("Реинвестирования процентов, месяцы: *"));
+                ui.add(egui::Label::new("Реинвестирования процентов (месяцы): *"));
                 ui.add_space(4.0);
 
                 ui.spacing_mut().button_padding.y = 5.0;
@@ -729,12 +734,19 @@ impl MyApp {
                     // ВКЛЮЧАЕМ ОТОБРАЖЕНИЕ ЛЕГЕНДЫ
                     .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
                     .show(ui, |plot_ui| {
-                        // 1. Отрисовываем обе линии на одном холсте
+                        
+                        // 1. Сбрасываем масштаб и позицию внутри plot_ui
+                        if self.reset_plot_view {
+                            plot_ui.set_auto_bounds(egui::Vec2b::TRUE); // или [true, true].into()
+                            self.reset_plot_view = false;
+                        }
+                        
+                        // 2. Отрисовываем обе линии на одном холсте
                         plot_ui.line(line_capital);
                         plot_ui.line(line_deposits);
 
                         if self.calc_in_params.withdraw_start_num > 0 {
-                            // 2. Добавляем кастомную вертикальную линию (например, на 10-й инвест-год)
+                            // 3. Добавляем кастомную вертикальную линию (например, на 10-й инвест-год)
                             // Задаем координату X. Например, берем год начала изъятий
                             let target_x = self.calc_in_params.withdraw_start_num as f64; 
                             
@@ -745,7 +757,7 @@ impl MyApp {
                                 
                             plot_ui.vline(vertical_line);
 
-                            // 3. Рисуем цветную точку-маркер на пересечении
+                            // 4. Рисуем цветную точку-маркер на пересечении
                             // Находим строку данных для нужного года, чтобы узнать точный баланс (координату Y)
                             if let Some(row) = self.calc_result_rows.iter().find(|r| r.invest_year == self.calc_in_params.withdraw_start_num) {
                                 let target_y = row.end_balance;
@@ -760,7 +772,7 @@ impl MyApp {
                             }
                         }
 
-                        // 4. Фича: оранжевая линия текущего портфеля
+                        // 5. Фича: оранжевая линия текущего портфеля
                         let total_portfolio_value: f64 = self.portfolio_assets.iter().map(|a| a.value).sum();
 
                         // Проверяем условия отображения: портфель не пуст, и его стоимость лежит между 
